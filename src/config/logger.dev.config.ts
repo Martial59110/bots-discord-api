@@ -20,7 +20,7 @@ export const loggerConfig: Params = {
         {
           target: 'pino/file',
           options: {
-            destination: '/app/logs/app.log',
+            destination: './logs/app.log',
             mkdir: true
           }
         }

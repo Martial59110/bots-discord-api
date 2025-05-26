@@ -43,8 +43,10 @@ export class GuildsService {
   async update(uuid: string, updateGuildDto: UpdateGuildDto): Promise<Guild> {
     const guild = await this.findOne(uuid);
     
-    // Mise à jour des propriétés simples
-    Object.assign(guild, updateGuildDto);
+    // Mise à jour des propriétés
+    if (updateGuildDto.name) guild.name = updateGuildDto.name;
+    if (updateGuildDto.memberCount) guild.memberCount = updateGuildDto.memberCount;
+    if (updateGuildDto.configuration) guild.configuration = updateGuildDto.configuration;
     
     return await this.guildRepository.save(guild);
   }

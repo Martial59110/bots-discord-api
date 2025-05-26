@@ -45,32 +45,4 @@ export class SignatureController {
   async getPromotionSignature(@Param('uuid', ParseUUIDPipe) uuid: string): Promise<PromotionSignatureDto> {
     return this.signatureService.getPromotionSignature(uuid);
   }
-
-  @Post('promotions/test-data')
-  @ApiOperation({ 
-    summary: 'Create test data for promotions',
-    description: 'Generates a test dataset for promotion signatures and saves it to the database'
-  })
-  @ApiResponse({ 
-    status: HttpStatus.CREATED, 
-    description: 'Test data successfully created and saved to the database',
-    type: PromotionsSignatureResponseDto
-  })
-  async createTestPromotionData(): Promise<PromotionsSignatureResponseDto> {
-    return this.signatureService.createTestData();
-  }
-
-  @Post('promotions/specific-data')
-  @ApiOperation({ 
-    summary: 'Add specific promotion data',
-    description: 'Adds specific promotion data to the database, including the special case for Yohan with multiple roles'
-  })
-  @ApiResponse({ 
-    status: HttpStatus.CREATED, 
-    description: 'Specific promotion data successfully added to the database',
-    type: PromotionsSignatureResponseDto
-  })
-  async addSpecificPromotionData(): Promise<PromotionsSignatureResponseDto> {
-    return this.signatureService.addSpecificPromotionData();
-  }
 } 

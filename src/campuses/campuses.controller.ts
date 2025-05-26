@@ -21,8 +21,15 @@ export class CampusesController {
   @Get()
   @ApiOperation({ summary: 'Récupérer tous les campus' })
   @ApiResponse({ status: 200, description: 'Liste des campus récupérée avec succès.', type: [Campus] })
-  findAll() {
-    return this.campusService.findAll();
+  async findAll() {
+    const campuses = await this.campusService.findAll();
+    if (Array.isArray(campuses)) {
+      return { data: campuses };
+    }
+    if (campuses && Array.isArray((campuses as any).data)) {
+      return { data: (campuses as any).data };
+    }
+    return { data: [] };
   }
 
   @Get(':uuid')

@@ -59,7 +59,7 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   // Nous ne définissons plus de préfixe global pour l'API
-  // app.setGlobalPrefix('api');
+   app.setGlobalPrefix('api');
   
   // Configuration de la version de l'API
   await app.listen(3000, '0.0.0.0');
