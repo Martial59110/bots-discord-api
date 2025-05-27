@@ -14,8 +14,6 @@ import { Role } from '../roles/entities/role.entity';
 import { Category } from '../categories/entities/category.entity';
 import { DiscordUsersModule } from '../discord-users/discord-users.module';
 import { DiscordUser } from '../discord-users/entities/discord-user.entity';
-import { Course } from '../courses/entities/course.entity';
-import { CoursesModule } from '../courses/courses.module';
 
 @Module({
   imports: [
@@ -25,16 +23,14 @@ import { CoursesModule } from '../courses/courses.module';
       Channel,
       Role,
       Category,
-      DiscordUser,
-      Course
+      DiscordUser
     ]),
     PromotionsModule,
     MembersModule,
     RolesModule,
     GuildsModule,
     ChannelsModule,
-    DiscordUsersModule,
-    CoursesModule
+    DiscordUsersModule
   ],
   controllers: [SignatureController],
   providers: [SignatureService],

@@ -40,6 +40,13 @@ export class DiscordUser {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
+  @ApiProperty({
+    description: "Hash de l'avatar Discord",
+    example: "a_1234567890abcdef"
+  })
+  @Column({ type: 'varchar', length: 255, name: 'avatar', nullable: true })
+  avatar?: string;
+
   @OneToOne(() => Member, member => member.discordUser)
   member: Member;
 

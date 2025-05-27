@@ -1,6 +1,5 @@
 import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
-import { Course } from '../../courses/entities/course.entity';
 import { Member } from '../../members/entities/member.entity';
 import { Promotion } from '../../promotions/entities/promotion.entity';
 import { Role } from '../../roles/entities/role.entity';
@@ -8,6 +7,7 @@ import { GuildTemplate } from '../../guilds-templates/entities/guild-template.en
 import { Channel } from '../../channels/entities/channel.entity';
 import { Category } from '../../categories/entities/category.entity';
 import { Campus } from '../../campuses/entities/campus.entity';
+import { Formation } from '../../formations/entities/formation.entity';
 
 @Entity('guilds')
 export class Guild {
@@ -67,10 +67,10 @@ export class Guild {
 
   @ApiProperty({
     description: 'Formations associées à la guilde',
-    type: () => [Course]
+    type: () => [Formation]
   })
-  @OneToMany(() => Course, course => course.guild)
-  courses: Course[];
+  @OneToMany(() => Formation, formation => formation.guild)
+  formations: Formation[];
 
   @ApiProperty({
     description: 'Rôles de la guilde',

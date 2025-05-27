@@ -5,7 +5,7 @@ import { CreateCampusDto } from './dto/create-campus.dto';
 import { UpdateCampusDto } from './dto/update-campus.dto';
 import { Campus } from './entities/campus.entity';
 import { Role } from 'src/roles/entities/role.entity';
-import fetch from 'node-fetch';
+import { DiscordBotService } from '../discord-bot/discord-bot.service';
 
 @Injectable()
 export class CampusesService {
@@ -15,47 +15,44 @@ export class CampusesService {
 
     @InjectRepository(Role)
     private roleRepository: Repository<Role>,
+
+    private readonly discordBotService: DiscordBotService,
   ) {}
 
   async create(createCampusDto: CreateCampusDto): Promise<Campus> {
     try {
-      let uuidRole = createCampusDto.uuidRole;
-      console.log('uuidRole reçu dans le DTO:', uuidRole, typeof uuidRole); // LOG pour debug
-      if (!uuidRole || typeof uuidRole !== 'string' || uuidRole.trim() === '') {
-        // Création du rôle Discord via l'API REST
-        const botToken = process.env.DISCORD_BOT_TOKEN;
-        if (!botToken) {
-          throw new BadRequestException('Le token du bot Discord (DISCORD_BOT_TOKEN) est manquant dans les variables d\'environnement');
-        }
-        const response = await fetch(`https://discord.com/api/v10/guilds/${createCampusDto.uuidGuild}/roles`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bot ${botToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ name: `Campus ${createCampusDto.name}` })
-        });
-        if (!response.ok) {
-          const error = await response.json();
-          throw new BadRequestException(error.message || 'Erreur lors de la création du rôle Discord');
-        }
-        const data = await response.json();
-        console.log('Réponse Discord:', data); // LOG pour debug
-        uuidRole = data.id;
-        if (!uuidRole) {
-          throw new BadRequestException('Impossible de récupérer l\'ID du rôle Discord. Réponse: ' + JSON.stringify(data));
-        }
+      const discordClient = this.discordBotService.getClient();
+      
+      if (!discordClient.user) {
+        throw new BadRequestException('Le bot n\'est pas encore connecté à Discord');
       }
+
+      // Récupérer le serveur Discord
+      const guild = await discordClient.guilds.fetch(createCampusDto.uuidGuild as string);
+      if (!guild) {
+        throw new BadRequestException('Serveur Discord non trouvé');
+      }
+
+      // Créer le rôle sur Discord
+      const role = await guild.roles.create({
+        name: `Campus ${createCampusDto.name}`,
+        color: '#000000',
+        reason: 'Création automatique du rôle pour le campus'
+      });
+
+      // Créer le rôle dans la base de données
       const newRole = this.roleRepository.create({
-        uuidRole: uuidRole,
+        uuidRole: role.id,
         uuidGuild: createCampusDto.uuidGuild,
         name: createCampusDto.name,
         memberCount: 0,
-        rolePosition: 0,
+        rolePosition: role.position,
         hoist: false,
-        color: "#000000",
+        color: role.hexColor,
       });
       const savedRole = await this.roleRepository.save(newRole);
+
+      // Créer le campus
       const newCampus = this.campusRepository.create({
         ...createCampusDto,
         uuidRole: savedRole.uuidRole,
@@ -85,25 +82,19 @@ export class CampusesService {
 
     // Si le nom change, on met aussi à jour le nom du rôle Discord
     if (updateCampusDto.name && updateCampusDto.name !== campus.name) {
-      const botToken = process.env.DISCORD_BOT_TOKEN;
-      if (!botToken) {
-        throw new BadRequestException('Le token du bot Discord (DISCORD_BOT_TOKEN) est manquant');
+      const discordClient = this.discordBotService.getClient();
+      if (!discordClient.user) {
+        throw new BadRequestException('Le bot n\'est pas encore connecté à Discord');
       }
-      // Appel PATCH à l'API Discord pour modifier le nom du rôle
-      const response = await fetch(
-        `https://discord.com/api/v10/guilds/${campus.uuidGuild}/roles/${campus.uuidRole}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bot ${botToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ name: `Campus ${updateCampusDto.name}` })
-        }
-      );
-      if (!response.ok) {
-        const error = await response.json();
-        throw new BadRequestException(error.message || 'Erreur lors de la modification du rôle Discord');
+
+      const guild = await discordClient.guilds.fetch(campus.uuidGuild as string);
+      if (!guild) {
+        throw new BadRequestException('Serveur Discord non trouvé');
+      }
+
+      const role = await guild.roles.fetch(campus.uuidRole);
+      if (role) {
+        await role.setName(`Campus ${updateCampusDto.name}`, 'Mise à jour du nom du campus');
       }
     }
 
@@ -121,22 +112,17 @@ export class CampusesService {
     }
 
     // Suppression du rôle Discord associé
-    const botToken = process.env.DISCORD_BOT_TOKEN;
-    if (!botToken) {
-      throw new BadRequestException('Le token du bot Discord (DISCORD_BOT_TOKEN) est manquant');
-    }
     if (campus.uuidRole && campus.uuidGuild) {
-      const response = await fetch(
-        `https://discord.com/api/v10/guilds/${campus.uuidGuild}/roles/${campus.uuidRole}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bot ${botToken}`,
-            'Content-Type': 'application/json'
+      const discordClient = this.discordBotService.getClient();
+      if (discordClient.user) {
+        const guild = await discordClient.guilds.fetch(campus.uuidGuild as string);
+        if (guild) {
+          const role = await guild.roles.fetch(campus.uuidRole);
+          if (role) {
+            await role.delete('Suppression du campus');
           }
         }
-      );
-      // On ignore l'erreur si le rôle n'existe déjà plus
+      }
     }
 
     return this.campusRepository.delete({ uuidCampus });

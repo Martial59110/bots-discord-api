@@ -26,7 +26,7 @@ export class CategoriesService {
       relations: {
         guild: true,
         channels: true,
-        course: true,
+        formations: true,
         promotion: true,
         guildTemplate: true
       }
@@ -39,7 +39,7 @@ export class CategoriesService {
       relations: {
         guild: true,
         channels: true,
-        course: true,
+        formations: true,
         promotion: true,
         guildTemplate: true
       }

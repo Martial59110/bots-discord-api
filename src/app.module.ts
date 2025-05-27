@@ -23,7 +23,7 @@ import { DashboardAccountModule } from './dashboard-accounts/dashboard-accounts.
 import { VotesModule } from './votes/votes.module';
 import { CommentsModule } from './comments/comments.module';
 import { DiscordUsersModule } from './discord-users/discord-users.module';
-import { CoursesModule } from './courses/courses.module';
+
 import { TagsModule } from './tags/tags.module';
 import { PollsModule } from './polls/polls.module';
 import { ConfigModule } from '@nestjs/config';
@@ -33,6 +33,8 @@ import { SignatureModule } from './signature/signature.module';
 import { PollTemplatesModule } from './poll-templates/poll-templates.module';
 import { QuestionTemplatesModule } from './question-templates/question-templates.module';
 import { AnswerTemplatesModule } from './answer-templates/answer-templates.module';
+import { DiscordBotModule } from './discord-bot/discord-bot.module';
+import { FormationsModule } from './formations/formations.module';
 
 /**
  * Module principal de l'application
@@ -73,14 +75,16 @@ import { AnswerTemplatesModule } from './answer-templates/answer-templates.modul
     DiscordUsersModule,
     CommentsModule,
     ReportsModule,
-    CoursesModule,
+  
     CommentsModule,
     TagsModule,
     PollsModule,
     SignatureModule,
     PollTemplatesModule,
     QuestionTemplatesModule,
-    AnswerTemplatesModule
+    AnswerTemplatesModule,
+    DiscordBotModule,
+    FormationsModule
   ],
   controllers: [AppController],
   providers: [],

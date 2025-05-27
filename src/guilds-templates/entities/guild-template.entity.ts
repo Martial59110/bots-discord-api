@@ -77,18 +77,19 @@ export class GuildTemplate {
   guild: Guild;
 
   @ApiProperty({
+    description: 'La catégorie associée à ce template',
+    type: () => Category,
+    required: false
+  })
+  @OneToOne(() => Category, category => category.guildTemplate)
+  @JoinColumn({ name: 'uuid_category' })
+  category: Category;
+
+  @ApiProperty({
     description: 'ID Discord de la catégorie associée',
     example: '123456789012345678',
     required: false
   })
   @Column({ name: 'uuid_category', type: 'varchar', length: 19, nullable: true })
   uuidCategory: string;
-
-  @ApiProperty({
-    description: 'Catégorie associée à ce template',
-    type: () => Category
-  })
-  @OneToOne(() => Category, category => category.guildTemplate)
-  @JoinColumn({ name: 'uuid_category' })
-  category: Category;
 }

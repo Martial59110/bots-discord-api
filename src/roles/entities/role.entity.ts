@@ -2,9 +2,9 @@ import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, Many
 import { ApiProperty } from '@nestjs/swagger';
 import { Guild } from '../../guilds/entities/guild.entity';
 import { Member } from '../../members/entities/member.entity';
-import { Course } from '../../courses/entities/course.entity';
 import { Campus } from '../../campuses/entities/campus.entity';
 import { Promotion } from 'src/promotions/entities/promotion.entity';
+import { Formation } from '../../formations/entities/formation.entity';
 
 @Entity('roles')
 export class Role {
@@ -88,13 +88,13 @@ export class Role {
   members: Member[];
   
   @ApiProperty({
-    description: 'Formations associées aux roles',
-    type: () => [Course],
+    description: 'Formations associées aux rôles',
+    type: () => [Formation],
     isArray: true,
     nullable: true
   })
-  @ManyToMany(() => Course, course => course.roles, { nullable: true })
-  courses: Course[];
+  @ManyToMany(() => Formation, formation => formation.roles, { nullable: true })
+  formations: Formation[];
 
   @OneToOne(() => Campus, campus => campus.role)
   campus: Campus;

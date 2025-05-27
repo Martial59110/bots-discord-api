@@ -1,11 +1,11 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToOne, ManyToMany, JoinTable } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
-import { Course } from '../../courses/entities/course.entity';
 import { Guild } from '../../guilds/entities/guild.entity';
 import { Role } from 'src/roles/entities/role.entity';
 import { Campus } from 'src/campuses/entities/campus.entity';
 import { Category } from 'src/categories/entities/category.entity';
 import { Member } from 'src/members/entities/member.entity';
+import { Formation } from '../../formations/entities/formation.entity';
 
 @Entity('Promotions')
 export class Promotion {
@@ -69,16 +69,16 @@ export class Promotion {
     description: 'UUID unique de la formation',
     example: '123e4567-e89b-12d3-a456-426614174000'
   })
-  @Column({ name: 'uuid_course', type: 'uuid' })
-  uuidCourse: string;
+  @Column({ name: 'uuid_formation', type: 'uuid' })
+  uuidFormation: string;
 
   @ApiProperty({
     description: 'Formation associée à la promotion',
-    type: () => Course
+    type: () => Formation
   })
-  @ManyToOne(() => Course, course => course.promotions)
-  @JoinColumn({ name: 'uuid_course' })
-  course: Course;
+  @ManyToOne(() => Formation)
+  @JoinColumn({ name: 'uuid_formation' })
+  formation: Formation;
 
   @ApiProperty({
     description: 'UUID du serveur Discord associé',

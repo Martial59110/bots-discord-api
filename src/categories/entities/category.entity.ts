@@ -2,7 +2,7 @@ import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, OneT
 import { ApiProperty } from '@nestjs/swagger';
 import { Channel } from '../../channels/entities/channel.entity';
 import { Guild } from '../../guilds/entities/guild.entity';
-import { Course } from '../../courses/entities/course.entity';
+import { Formation } from '../../formations/entities/formation.entity';
 import { Promotion } from 'src/promotions/entities/promotion.entity';
 import { GuildTemplate } from 'src/guilds-templates/entities/guild-template.entity';
 
@@ -12,7 +12,7 @@ export class Category {
     description: 'ID Discord de la catégorie',
     example: '123456789012345678'
   })
-  @PrimaryColumn({ type: 'varchar', length: 19, name: 'uuid_category' })
+  @PrimaryColumn({ type: 'varchar', length: 36, name: 'uuid_category' })
   uuid: string;
 
   @ApiProperty({
@@ -66,10 +66,10 @@ export class Category {
 
   @ApiProperty({
     description: 'Formation associée à la catégorie',
-    type: () => Course
+    type: () => Formation
   })
-  @OneToMany(() => Course, course => course.category)
-  course: Course[];
+  @OneToMany(() => Formation, formation => formation.category)
+  formations: Formation[];
 
   @ApiProperty({
     description: 'Le serveur Discord associé à cette catégorie',

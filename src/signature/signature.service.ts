@@ -15,7 +15,6 @@ import { Category } from '../categories/entities/category.entity';
 import { DiscordUser } from '../discord-users/entities/discord-user.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { PromotionSignatureDto, MembreDto, PromotionsSignatureResponseDto, RoleDto } from './dto/promotion-signature.dto';
-import { Course } from '../courses/entities/course.entity';
 
 @Injectable()
 export class SignatureService {
@@ -40,8 +39,6 @@ export class SignatureService {
     private categoryRepository: Repository<Category>,
     @InjectRepository(DiscordUser)
     private discordUserRepository: Repository<DiscordUser>,
-    @InjectRepository(Course)
-    private courseRepository: Repository<Course>,
   ) {}
 
   /**

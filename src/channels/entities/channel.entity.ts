@@ -1,8 +1,8 @@
 import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Category } from '../../categories/entities/category.entity';
-import { Course } from '../../courses/entities/course.entity';
 import { Guild } from '../../guilds/entities/guild.entity';
+import { Formation } from 'src/formations/entities/formation.entity';
 
 @Entity('Channels')
 export class Channel {
@@ -24,7 +24,7 @@ export class Channel {
   @ApiProperty({
     description: 'Le type de channel',
     example: 'text',
-    enum: ['text', 'voice', 'announcement']
+    enum: ['text', 'voice', 'announcement', 'forum']
   })
   @Column({ type: 'varchar', length: 20 })
   type: string;
@@ -77,16 +77,8 @@ export class Channel {
 
   @ApiProperty({
     description: 'Formation associées aux channels',
-    type: () => [Course],
+    type: () => [Formation],
     isArray: true
-  })
-  @ManyToOne(() => Course, course => course.channels)
-  @JoinColumn({ name: 'uuid_course' })
-  course: Course;
-
-  @ApiProperty({
-    description: 'Le serveur Discord associé au channel',
-    type: () => Guild
   })
   @ManyToOne(() => Guild, guild => guild.channels)
   @JoinColumn({ name: 'uuid_guild' })

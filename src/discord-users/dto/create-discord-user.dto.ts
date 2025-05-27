@@ -20,4 +20,8 @@ export class CreateDiscordUserDto extends PickType(PickableDiscordUUIDFields, [
   @IsString()
   @Length(1, 50)
   discriminator: string;
+
+  @ApiProperty({ required: false, description: "Hash de l'avatar Discord" })
+  @IsString()
+  avatar?: string;
 } 
