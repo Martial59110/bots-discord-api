@@ -89,7 +89,7 @@ export class Member {
   @Column({ type: 'uuid', name: 'uuid_discord' }) 
   uuidDiscord: string;
 
-  @OneToOne(() => DiscordUser, (discordUser) => discordUser.member)
+  @ManyToOne(() => DiscordUser, (discordUser) => discordUser.members)
   @JoinColumn({ name: 'uuid_discord' })
   discordUser: DiscordUser;
 
@@ -133,7 +133,7 @@ export class Member {
     type: () => [Promotion]
   })
   @ManyToMany(() => Promotion, promotion => promotion.followers)
-  followedPromotions: Promotion[];
+followedPromotions: Promotion[];
 
   @ApiProperty({
     description: 'Promotions gérées par le membre',
