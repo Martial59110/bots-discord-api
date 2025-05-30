@@ -86,15 +86,42 @@ export class FormationsService {
       const savedFormation = await this.formationRepository.save(newFormation);
       // Enregistrer les threads si présents
       if (createFormationDto.threads && createFormationDto.threads.length > 0) {
-        const threadEntities = createFormationDto.threads.map(t => {
+        console.log('Payload threads reçu:', createFormationDto.threads);
+        // Filtrage des doublons (forumId + name)
+        const uniqueThreadsMap = new Map<string, any>();
+        for (const t of createFormationDto.threads) {
+          const key = `${t.forumId}::${t.name}`;
+          if (!uniqueThreadsMap.has(key)) {
+            uniqueThreadsMap.set(key, t);
+          }
+        }
+        const uniqueThreads = Array.from(uniqueThreadsMap.values());
+        console.log('Threads après filtrage (unique):', uniqueThreads);
+        // Attribuer threadPosition par forum
+        const threadsByForum: { [forumId: string]: any[] } = {};
+        for (const t of uniqueThreads) {
+          if (!threadsByForum[t.forumId]) threadsByForum[t.forumId] = [];
+          threadsByForum[t.forumId].push(t);
+        }
+        Object.values(threadsByForum).forEach((arr: any[]) => {
+          arr.sort((a, b) => (a.threadPosition ?? 0) - (b.threadPosition ?? 0));
+          arr.forEach((t, idx) => t.threadPosition = idx);
+        });
+        // Aplatir et insérer
+        const threadsToInsert = Object.values(threadsByForum).flat();
+        const threadEntities = threadsToInsert.map(t => {
           const thread = this.threadTemplateRepository.create({
             name: t.name,
             forumId: t.forumId,
-            formation: savedFormation
+            threadPosition: t.threadPosition,
+            formationUuidFormation: savedFormation.uuidFormation
           });
           return thread;
         });
         await this.threadTemplateRepository.save(threadEntities);
+        // Log le contenu inséré en BDD
+        const inserted = await this.threadTemplateRepository.find({ where: { formationUuidFormation: savedFormation.uuidFormation } });
+        console.log('Threads en BDD après insertion:', inserted);
       }
       const result = await this.formationRepository.findOne({
         where: { uuidFormation: savedFormation.uuidFormation },
@@ -107,10 +134,23 @@ export class FormationsService {
     }
   }
 
-  findAll() {
-    return this.formationRepository.find({
-      relations: ['channels', 'guild', 'category', 'threads']
-    });
+  async findAll(page: number = 1, limit: number = 5, search?: string, uuidGuild?: string) {
+    const qb = this.formationRepository.createQueryBuilder('formation')
+      .leftJoinAndSelect('formation.channels', 'channels')
+      .leftJoinAndSelect('formation.guild', 'guild')
+      .leftJoinAndSelect('formation.category', 'category')
+      .leftJoinAndSelect('formation.threads', 'threads')
+      .orderBy('formation.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+    if (search && search.trim()) {
+      qb.andWhere('LOWER(formation.name) LIKE :search', { search: `%${search.toLowerCase()}%` });
+    }
+    if (uuidGuild) {
+      qb.andWhere('formation.uuidGuild = :uuidGuild', { uuidGuild });
+    }
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total, page, limit };
   }
 
   findOne(uuidFormation: string) {
@@ -230,5 +270,18 @@ export class FormationsService {
       }
     }
     return { success: true };
+  }
+
+  async lookupFormations(search?: string, page: number = 1, limit: number = 20) {
+    const qb = this.formationRepository.createQueryBuilder('formation')
+      .select(['formation.uuidFormation', 'formation.name', 'formation.uuidGuild'])
+      .orderBy('formation.name', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
+    if (search && search.trim()) {
+      qb.where('LOWER(formation.name) LIKE :search', { search: `%${search.toLowerCase()}%` });
+    }
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total, page, limit };
   }
 } 
