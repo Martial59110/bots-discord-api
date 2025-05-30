@@ -5,6 +5,9 @@ import { CreateGuildDto } from './dto/create-guild.dto';
 import { UpdateGuildDto } from './dto/update-guild.dto';
 import { Guild } from './entities/guild.entity';
 import { DiscordBotService } from '../discord-bot/discord-bot.service';
+import { Formation } from '../formations/entities/formation.entity';
+import { Member } from '../members/entities/member.entity';
+import { Promotion } from '../promotions/entities/promotion.entity';
 
 @Injectable()
 export class GuildsService {
@@ -12,6 +15,12 @@ export class GuildsService {
     @InjectRepository(Guild)
     private readonly guildRepository: Repository<Guild>,
     private readonly discordBotService: DiscordBotService,
+    @InjectRepository(Formation)
+    private readonly formationRepository: Repository<Formation>,
+    @InjectRepository(Member)
+    private readonly memberRepository: Repository<Member>,
+    @InjectRepository(Promotion)
+    private readonly promotionRepository: Repository<Promotion>,
   ) {}
 
   // Créer une nouvelle guild
@@ -57,10 +66,15 @@ export class GuildsService {
   }
 
   // Récupérer toutes les guilds
-  async findAll(): Promise<Guild[]> {
-    return await this.guildRepository.find({
-      relations: ['formations', 'members', 'roles', 'channels', 'categories', 'campuses', 'promotions', 'template']
+  async findAll(): Promise<any[]> {
+    const guilds = await this.guildRepository.find({
+      select: ['uuid', 'name', 'memberCount', 'configuration', 'createdAt', 'updatedAt']
     });
+    // Pour chaque guilde, compter les membres
+    for (const guild of guilds) {
+      guild.memberCount = (await this.memberRepository.count({ where: { uuidGuild: guild.uuid } })).toString();
+    }
+    return guilds;
   }
 
   // Récupérer une guild par son uuid
@@ -96,5 +110,32 @@ export class GuildsService {
     if (result.affected === 0) {
       throw new NotFoundException(`Guild with UUID "${uuid}" not found`);
     }
+  }
+
+  async getDiscordGuild(uuidGuild: string): Promise<any> {
+    const discordClient = this.discordBotService.getClient();
+    return await discordClient.guilds.fetch(uuidGuild);
+  }
+
+  async getFormations(uuidGuild: string) {
+    const guild = await this.findOne(uuidGuild);
+    if (!guild) {
+      throw new NotFoundException(`Guild with UUID "${uuidGuild}" not found`);
+    }
+    return this.formationRepository.find({
+      where: { uuidGuild },
+      relations: ['guild']
+    });
+  }
+
+  async getPromotionMembersCount(uuidGuild: string): Promise<{ count: number }> {
+    const promotions = await this.promotionRepository.find({ where: { uuidGuild }, relations: ['followers'] });
+    const memberIds = new Set<string>();
+    for (const promo of promotions) {
+      for (const follower of promo.followers) {
+        memberIds.add(follower.uuidMember);
+      }
+    }
+    return { count: memberIds.size };
   }
 }
