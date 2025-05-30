@@ -45,6 +45,21 @@ export class DiscordUsersController {
     return discordUser;
   }
 
+  @Put(':uuidDiscord/refresh')
+  @ApiOperation({ summary: 'Rafraîchir les infos Discord (pseudo, avatar, etc.)' })
+  async refresh(
+    @Param('uuidDiscord') uuidDiscord: string,
+    @Body('uuidGuild') uuidGuild?: string
+  ) {
+    return this.discordUsersService.syncDiscordUserInfos(uuidDiscord, uuidGuild);
+  }
+
+  @Put('refresh/all')
+  @ApiOperation({ summary: 'Rafraîchir tous les utilisateurs Discord' })
+  async refreshAll() {
+    return this.discordUsersService.syncAllDiscordUsersInfos();
+  }
+
   @Delete(':uuidDiscord')
   @ApiOperation({ summary: 'Supprimer un utilisateur Discord' })
   @ApiResponse({ status: 200, description: 'L\'utilisateur a été supprimé avec succès.' })
