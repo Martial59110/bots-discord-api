@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, NotFoundException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, NotFoundException, HttpStatus, Query, Patch, ParseIntPipe } from '@nestjs/common';
 import { PromotionsService } from './promotions.service';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { UpdatePromotionDto } from './dto/update-promotion.dto';
@@ -34,8 +34,16 @@ export class PromotionsController {
   @Get()
   @ApiOperation({ summary: 'Récupérer toutes les promotions' })
   @ApiResponse({ status: 200, description: 'Liste des promotions récupérée avec succès.', type: [Promotion] })
-  findAll() {
-    return this.promotionsService.findAll();
+  async findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string
+  ) {
+    const result = await this.promotionsService.findAll(page, limit, search);
+    return {
+      message: 'Data retrieved successfully',
+      data: result
+    };
   }
 
   @Get(':uuid')
@@ -46,7 +54,7 @@ export class PromotionsController {
     return this.promotionsService.findOne(uuid);
   }
 
-  @Put(':uuid')
+  @Patch(':uuid')
   @ApiOperation({ summary: 'Mettre à jour une promotion' })
   @ApiResponse({ status: 200, description: 'La promotion a été mise à jour avec succès.', type: Promotion })
   @ApiResponse({ status: 404, description: 'Promotion non trouvée' })
@@ -92,5 +100,32 @@ export class PromotionsController {
     @Param('uuid_member') uuidMember: string,
   ) {
     return this.promotionsService.addManager(uuidPromotion, uuidMember);
+  }
+
+  @Patch(':uuid/position/:position')
+  @ApiOperation({ summary: 'Modifier la position de la catégorie d\'une promotion' })
+  @ApiResponse({ status: 200, description: 'La position de la catégorie a été modifiée avec succès.', type: Promotion })
+  @ApiResponse({ status: 404, description: 'Promotion non trouvée' })
+  @ApiResponse({ status: 400, description: 'Position invalide ou promotion sans catégorie' })
+  async setCategoryPosition(
+    @Param('uuid') uuid: string,
+    @Param('position', ParseIntPipe) position: number
+  ) {
+    return this.promotionsService.setCategoryPosition(uuid, position);
+  }
+
+  @Get(':uuid/members')
+  async getPromotionMembers(@Param('uuid') uuid: string) {
+    const promo = await this.promotionsService.getPromotionMembers(uuid);
+    if (!promo) throw new NotFoundException('Promotion not found');
+    return promo;
+  }
+
+  @Delete(':uuid_promotion/followers/:uuid_member')
+  async removeFollower(
+    @Param('uuid_promotion') uuidPromotion: string,
+    @Param('uuid_member') uuidMember: string,
+  ) {
+    return this.promotionsService.removeFollower(uuidPromotion, uuidMember);
   }
 } 
