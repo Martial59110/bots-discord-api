@@ -1,4 +1,4 @@
-import { IsString, Length } from 'class-validator';
+import { IsString, Length, IsOptional } from 'class-validator';
 import { ApiProperty, PickType } from '@nestjs/swagger';
 import { PickableDiscordUUIDFields } from 'src/utils/pickable-discord-uuid-fields';
 
@@ -22,6 +22,7 @@ export class CreateDiscordUserDto extends PickType(PickableDiscordUUIDFields, [
   discriminator: string;
 
   @ApiProperty({ required: false, description: "Hash de l'avatar Discord" })
+  @IsOptional()
   @IsString()
   avatar?: string;
 } 
