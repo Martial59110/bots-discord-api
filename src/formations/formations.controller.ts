@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Put, Query } from '@nestjs/common';
 import { FormationsService } from './formations.service';
 import { CreateFormationDto } from './dto/create-formation.dto';
 import { UpdateFormationDto } from './dto/update-formation.dto';
@@ -13,8 +13,15 @@ export class FormationsController {
   }
 
   @Get()
-  findAll() {
-    return this.formationsService.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('uuidGuild') uuidGuild?: string
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 5;
+    return this.formationsService.findAll(pageNum, limitNum, search, uuidGuild);
   }
 
   @Get(':uuidFormation')
@@ -50,5 +57,16 @@ export class FormationsController {
     @Body() body: { threads: { uuid: string, threadPosition: number }[] }
   ) {
     return this.formationsService.updateThreadsOrder(uuidFormation, body.threads);
+  }
+
+  @Get('lookup')
+  lookup(
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.formationsService.lookupFormations(search, pageNum, limitNum);
   }
 } 
