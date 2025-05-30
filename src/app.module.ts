@@ -35,6 +35,7 @@ import { QuestionTemplatesModule } from './question-templates/question-templates
 import { AnswerTemplatesModule } from './answer-templates/answer-templates.module';
 import { DiscordBotModule } from './discord-bot/discord-bot.module';
 import { FormationsModule } from './formations/formations.module';
+import { DiscordModule } from './discord/discord.module';
 
 /**
  * Module principal de l'application
@@ -84,7 +85,8 @@ import { FormationsModule } from './formations/formations.module';
     QuestionTemplatesModule,
     AnswerTemplatesModule,
     DiscordBotModule,
-    FormationsModule
+    FormationsModule,
+    DiscordModule,
   ],
   controllers: [AppController],
   providers: [],
