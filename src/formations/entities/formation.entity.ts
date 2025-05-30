@@ -39,6 +39,6 @@ export class Formation {
   @JoinTable()
   channels: Channel[];
 
-  @OneToMany(() => ThreadTemplate, thread => thread.formation, { cascade: true })
+  @OneToMany(() => ThreadTemplate, thread => thread.formation)
   threads: ThreadTemplate[];
 } 
