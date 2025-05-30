@@ -14,7 +14,7 @@ export class Promotion {
     example: '123e4567-e89b-12d3-a456-426614174000'
   })
   @PrimaryGeneratedColumn('uuid', { name: 'uuid_promotion' })
-  uuid: string;
+  uuid_promotion: string;
 
   @ApiProperty({
     description: 'Nom de la promotion',
@@ -147,13 +147,14 @@ export class Promotion {
     description: 'Membres qui suivent cette promotion',
     type: () => [Member]
   })
-  @ManyToMany(() => Member)
-  @JoinTable({
-    name: 'promotions_followers',
-    joinColumns: [{ name: 'uuid_promotion', referencedColumnName: 'uuid' }],
-    inverseJoinColumns: [{ name: 'uuid_member', referencedColumnName: 'uuidMember' }]
-  })
-  followers: Member[];
+  @ManyToMany(() => Member, member => member.followedPromotions)
+@JoinTable({
+  name: 'promotions_followers',
+  joinColumn: { name: 'uuid_promotion', referencedColumnName: 'uuid_promotion' },
+  inverseJoinColumn: { name: 'uuid_member', referencedColumnName: 'uuidMember' }
+})
+followers: Member[];
+
 
   @ApiProperty({
     description: 'Membres qui gèrent cette promotion',
@@ -162,7 +163,7 @@ export class Promotion {
   @ManyToMany(() => Member)
   @JoinTable({
     name: 'promotions_managers',
-    joinColumns: [{ name: 'uuid_promotion', referencedColumnName: 'uuid' }],
+    joinColumns: [{ name: 'uuid_promotion', referencedColumnName: 'uuid_promotion' }],
     inverseJoinColumns: [{ name: 'uuid_member', referencedColumnName: 'uuidMember' }]
   })
   managers: Member[];
