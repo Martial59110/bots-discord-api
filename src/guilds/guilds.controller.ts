@@ -66,4 +66,26 @@ export class GuildsController {
   remove(@Param('uuid') uuid: string) {
     return this.guildService.remove(uuid);
   }
+
+  @Get(':uuidGuild/discord-roles')
+  async getDiscordRoles(@Param('uuidGuild') uuidGuild: string) {
+    const guild = await this.guildService.getDiscordGuild(uuidGuild);
+    const roles = guild.roles.cache
+      .filter(role => role.name !== '@everyone')
+      .map(role => ({ id: role.id, name: role.name, color: role.color }));
+    return roles;
+  }
+
+  @Get(':uuidGuild/formations')
+  @ApiOperation({ summary: 'Récupérer les formations d\'un serveur Discord' })
+  @ApiResponse({ status: 200, description: 'Liste des formations récupérée avec succès.' })
+  @ApiResponse({ status: 404, description: 'Serveur non trouvé' })
+  async getFormations(@Param('uuidGuild') uuidGuild: string) {
+    return this.guildService.getFormations(uuidGuild);
+  }
+
+  @Get(':uuidGuild/promotion-members-count')
+  async getPromotionMembersCount(@Param('uuidGuild') uuidGuild: string) {
+    return this.guildService.getPromotionMembersCount(uuidGuild);
+  }
 }
