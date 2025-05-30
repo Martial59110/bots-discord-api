@@ -5,11 +5,15 @@ import { PromotionsController } from './promotions.controller';
 import { Promotion } from './entities/promotion.entity';
 import { RolesModule } from 'src/roles/roles.module';
 import { Member } from 'src/members/entities/member.entity';
+import { FormationsModule } from '../formations/formations.module';
+import { DiscordBotModule } from '../discord-bot/discord-bot.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Promotion, Member]), 
-    RolesModule
+    RolesModule,
+    FormationsModule,
+    DiscordBotModule
   ],
   controllers: [PromotionsController],
   providers: [PromotionsService],
