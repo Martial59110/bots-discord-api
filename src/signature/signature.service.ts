@@ -59,7 +59,7 @@ export class SignatureService {
    */
   async getPromotionSignature(uuid: string): Promise<PromotionSignatureDto> {
     const promotion = await this.promotionRepository.findOne({
-      where: { uuid },
+      where: { uuid_promotion: uuid },
       relations: ['category', 'followers', 'managers', 'role'],
     });
 
@@ -123,7 +123,7 @@ export class SignatureService {
     };
 
     return {
-      uuid: promotion.uuid,
+      uuid: promotion.uuid_promotion,
       nom: promotion.name,
       channel,
       chargeDeProjet: projectManager ? {
