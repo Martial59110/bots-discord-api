@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, OneToOne } from 'typeorm';
+import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, OneToOne, OneToMany } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 
 import { Member } from 'src/members/entities/member.entity';
@@ -47,8 +47,8 @@ export class DiscordUser {
   @Column({ type: 'varchar', length: 255, name: 'avatar', nullable: true })
   avatar?: string;
 
-  @OneToOne(() => Member, member => member.discordUser)
-  member: Member;
+  @OneToMany(() => Member, member => member.discordUser)
+  members: Member[];
 
   @OneToOne(() => DashboardAccount, dashboardAccount => dashboardAccount.discordUser)
   dashboardAccount: DashboardAccount
