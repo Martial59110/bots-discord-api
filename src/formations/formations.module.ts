@@ -20,6 +20,6 @@ import { ThreadTemplate } from './entities/thread-template.entity';
   ],
   controllers: [FormationsController],
   providers: [FormationsService],
-  exports: [FormationsService]
+  exports: [FormationsService, TypeOrmModule]
 })
 export class FormationsModule {} 
