@@ -3,10 +3,32 @@ import { ChannelsService } from './channels.service';
 import { Channel } from './entities/channel.entity';
 import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
+import { Category } from '../categories/entities/category.entity';
+import { Guild } from '../guilds/entities/guild.entity';
 
 describe('ChannelsService', () => {
   let service: ChannelsService;
   let repository: Repository<Channel>;
+
+  const mockCategory: Partial<Category> = {
+    uuid: '234567890123456789',
+    name: 'test-category',
+    channels: [],
+    position: 1,
+    uuidGuild: '345678901234567890',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  const mockGuild: Partial<Guild> = {
+    uuid: '345678901234567890',
+    name: 'test-guild',
+    channels: [],
+    memberCount: '100',
+    configuration: {},
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
 
   const mockChannel: Channel = {
     uuid: '123456789012345678',
@@ -17,9 +39,8 @@ describe('ChannelsService', () => {
     uuidGuild: '345678901234567890',
     createdAt: new Date(),
     updatedAt: new Date(),
-    category: null,
-    course: null,
-    guild: null
+    category: mockCategory as Category,
+    guild: mockGuild as Guild
   };
 
   const mockRepository = {

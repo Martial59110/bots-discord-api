@@ -63,14 +63,14 @@ export class Resource {
     description: 'Date de dernière mise à jour',
     example: '2024-02-17T12:00:00Z'
   })
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
   updatedAt: Date;
 
   @ApiProperty({
     description: 'Date de création',
     example: '2024-02-17T12:00:00Z'
   })
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   createdAt: Date;
 
   @ApiProperty({

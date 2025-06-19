@@ -5,7 +5,7 @@ import { CreateCampusDto } from './dto/create-campus.dto';
 import { UpdateCampusDto } from './dto/update-campus.dto';
 import { Campus } from './entities/campus.entity';
 import { Role } from 'src/roles/entities/role.entity';
-import { DiscordBotService } from '../discord-bot/discord-bot.service';
+import { CampusBotService } from './campus-bot.service';
 
 @Injectable()
 export class CampusesService {
@@ -16,43 +16,34 @@ export class CampusesService {
     @InjectRepository(Role)
     private roleRepository: Repository<Role>,
 
-    private readonly discordBotService: DiscordBotService,
+    private readonly campusBotService: CampusBotService,
   ) {}
 
   async create(createCampusDto: CreateCampusDto): Promise<Campus> {
     try {
-      const discordClient = this.discordBotService.getClient();
-      
-      if (!discordClient.user) {
-        throw new BadRequestException('Le bot n\'est pas encore connecté à Discord');
+      if (!createCampusDto.uuidGuild) {
+        throw new BadRequestException('UUID du serveur Discord manquant');
       }
 
-      // Récupérer le serveur Discord
-      const guild = await discordClient.guilds.fetch(createCampusDto.uuidGuild as string);
-      if (!guild) {
-        throw new BadRequestException('Serveur Discord non trouvé');
-      }
+      // Création du rôle Discord //
+      const discordRole = await this.campusBotService.createCampusRole(
+        createCampusDto.uuidGuild,
+        createCampusDto.name
+      );
 
-      // Créer le rôle sur Discord
-      const role = await guild.roles.create({
-        name: `Campus ${createCampusDto.name}`,
-        color: '#000000',
-        reason: 'Création automatique du rôle pour le campus'
-      });
-
-      // Créer le rôle dans la base de données
+      // Sauvegarde du rôle en BDD //
       const newRole = this.roleRepository.create({
-        uuidRole: role.id,
+        uuidRole: discordRole.id,
         uuidGuild: createCampusDto.uuidGuild,
         name: createCampusDto.name,
         memberCount: 0,
-        rolePosition: role.position,
+        rolePosition: discordRole.position,
         hoist: false,
-        color: role.hexColor,
+        color: discordRole.hexColor,
       });
       const savedRole = await this.roleRepository.save(newRole);
 
-      // Créer le campus
+      // Création du campus //
       const newCampus = this.campusRepository.create({
         ...createCampusDto,
         uuidRole: savedRole.uuidRole,
@@ -64,7 +55,7 @@ export class CampusesService {
   }
 
   findAll() {
-    return this.campusRepository.find();
+    return this.campusRepository.find({ relations: ['promotions'] });
   }
 
   findOne(uuidCampus: string) {
@@ -80,22 +71,13 @@ export class CampusesService {
       throw new NotFoundException(`Campus with UUID "${uuidCampus}" not found`);
     }
 
-    // Si le nom change, on met aussi à jour le nom du rôle Discord
+   
     if (updateCampusDto.name && updateCampusDto.name !== campus.name) {
-      const discordClient = this.discordBotService.getClient();
-      if (!discordClient.user) {
-        throw new BadRequestException('Le bot n\'est pas encore connecté à Discord');
-      }
-
-      const guild = await discordClient.guilds.fetch(campus.uuidGuild as string);
-      if (!guild) {
-        throw new BadRequestException('Serveur Discord non trouvé');
-      }
-
-      const role = await guild.roles.fetch(campus.uuidRole);
-      if (role) {
-        await role.setName(`Campus ${updateCampusDto.name}`, 'Mise à jour du nom du campus');
-      }
+      await this.campusBotService.updateCampusRole(
+        campus.uuidGuild,
+        campus.uuidRole,
+        updateCampusDto.name
+      );
     }
 
     Object.assign(campus, updateCampusDto);
@@ -111,18 +93,9 @@ export class CampusesService {
       throw new NotFoundException(`Campus with UUID "${uuidCampus}" not found`);
     }
 
-    // Suppression du rôle Discord associé
+    // Suppression du rôle Discord associé via le service dédié
     if (campus.uuidRole && campus.uuidGuild) {
-      const discordClient = this.discordBotService.getClient();
-      if (discordClient.user) {
-        const guild = await discordClient.guilds.fetch(campus.uuidGuild as string);
-        if (guild) {
-          const role = await guild.roles.fetch(campus.uuidRole);
-          if (role) {
-            await role.delete('Suppression du campus');
-          }
-        }
-      }
+      await this.campusBotService.deleteCampusRole(campus.uuidGuild, campus.uuidRole);
     }
 
     return this.campusRepository.delete({ uuidCampus });

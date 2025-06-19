@@ -39,14 +39,14 @@ export class Vote {
     description: 'Date de création du vote',
     example: '2024-03-14T12:00:00Z'
   })
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   createdAt: Date;
 
   @ApiProperty({
     description: 'Date de dernière mise à jour du vote',
     example: '2024-03-14T12:00:00Z'
   })
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
   updatedAt: Date;
 
   @ApiProperty({

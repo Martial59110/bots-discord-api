@@ -7,6 +7,7 @@ import { Member } from './entities/member.entity';
 import { Role } from '../roles/entities/role.entity';
 import { Client } from 'discord.js';
 import { DiscordUser } from '../discord-users/entities/discord-user.entity';
+import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class MembersService {
@@ -21,20 +22,30 @@ export class MembersService {
 
     @InjectRepository(DiscordUser)
     private discordUserRepository: Repository<DiscordUser>,
-  ) {}
+    private readonly logger: PinoLogger
+  ) {
+    this.logger.setContext('MembersService');
+  }
 
   // Créer un nouveau membre
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
+    this.logger.info(`Tentative de création d'un membre avec l'UUID Discord : ${createMemberDto.uuidDiscord}`);
+    
     const member = this.membersRepository.create(createMemberDto);
     const saved = await this.membersRepository.save(member);
+    
+    this.logger.info(`Membre "${saved.guildUsername}" (UUID: ${saved.uuidMember}) créé avec succès.`);
+    
     // Synchronisation du nickname Discord si possible
     if (saved.uuidGuild && saved.uuidDiscord && saved.guildUsername) {
       try {
+        this.logger.info(`Synchronisation du nickname Discord pour le membre ${saved.uuidMember}`);
         const guild = await this.discordClient.guilds.fetch(saved.uuidGuild);
         const guildMember = await guild.members.fetch(saved.uuidDiscord);
         await guildMember.setNickname(saved.guildUsername);
+        this.logger.info(`Nickname Discord synchronisé avec succès pour ${saved.guildUsername}`);
       } catch (e) {
-        // Optionnel : log ou ignorer si le bot n'a pas les droits
+        this.logger.warn(`Échec de la synchronisation du nickname Discord pour ${saved.guildUsername}: ${e.message}`);
       }
     }
     return saved;
@@ -42,6 +53,8 @@ export class MembersService {
 
   // Récupérer tous les membres
   async findAll(page: number = 1, limit: number = 7, uuidGuild?: string, search?: string): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    this.logger.info(`Récupération des membres - Page: ${page}, Limite: ${limit}, Guilde: ${uuidGuild || 'toutes'}, Recherche: ${search || 'aucune'}`);
+    
     const where: any = {};
     if (uuidGuild) where.uuidGuild = uuidGuild;
     if (search) where.guildUsername = Like(`%${search}%`);
@@ -56,6 +69,8 @@ export class MembersService {
       skip: (page - 1) * limit,
       take: limit,
     });
+
+    this.logger.info(`${data.length} membres récupérés sur un total de ${total}`);
 
     // Ajoute les rôles Discord comme avant (si besoin)
     for (const membre of data as any[]) {
@@ -79,6 +94,8 @@ export class MembersService {
 
   // Récupérer un membre par son uuid
   async findOne(uuidMember: string): Promise<Member> {
+    this.logger.info(`Recherche du membre avec l'UUID : ${uuidMember}`);
+    
     try {
       const member = await this.membersRepository.findOne({
         where: { uuidMember },
@@ -86,13 +103,17 @@ export class MembersService {
       });
 
       if (!member) {
+        this.logger.warn(`Membre non trouvé pour l'UUID : ${uuidMember}`);
         throw new NotFoundException(`Member with UUID ${uuidMember} not found`);
       }
+      
+      this.logger.info(`Membre "${member.guildUsername}" trouvé.`);
       return member;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
+      this.logger.error(`Erreur lors de la récupération du membre ${uuidMember}`, error.stack);
       throw new BadRequestException(`Erreur lors de la récupération du membre: ${error.message}`);
     }
   }
@@ -123,25 +144,44 @@ export class MembersService {
 
   // Mettre à jour un membre
   async update(uuidMember: string, updateMemberDto: UpdateMemberDto): Promise<Member> {
+    this.logger.info(`Tentative de mise à jour du membre avec l'UUID : ${uuidMember}`);
+    
     const member = await this.findOne(uuidMember);
     const oldUsername = member.guildUsername;
     Object.assign(member, updateMemberDto);
     const saved = await this.membersRepository.save(member);
+    
+    this.logger.info(`Membre "${saved.guildUsername}" (UUID: ${uuidMember}) mis à jour avec succès.`);
+    
     // Synchronisation du nickname Discord si le pseudo a changé
     if (updateMemberDto.guildUsername && updateMemberDto.guildUsername !== oldUsername) {
-      const guild = await this.discordClient.guilds.fetch(member.uuidGuild);
-      const guildMember = await guild.members.fetch(member.uuidDiscord);
-      await guildMember.setNickname(updateMemberDto.guildUsername);
+      try {
+        this.logger.info(`Mise à jour du nickname Discord de "${oldUsername}" vers "${updateMemberDto.guildUsername}"`);
+        const guild = await this.discordClient.guilds.fetch(member.uuidGuild);
+        const guildMember = await guild.members.fetch(member.uuidDiscord);
+        await guildMember.setNickname(updateMemberDto.guildUsername);
+        this.logger.info(`Nickname Discord mis à jour avec succès.`);
+      } catch (e) {
+        this.logger.warn(`Échec de la mise à jour du nickname Discord: ${e.message}`);
+      }
     }
     return saved;
   }
 
   // Supprimer un membre
   async remove(uuidMember: string): Promise<DeleteResult> {
+    this.logger.info(`Tentative de suppression du membre avec l'UUID : ${uuidMember}`);
+    
+    // Récupérer le membre pour avoir son nom avant suppression
+    const member = await this.membersRepository.findOne({ where: { uuidMember } });
+    
     const result = await this.membersRepository.delete({ uuidMember });
     if (result.affected === 0) {
+      this.logger.warn(`Suppression échouée : Membre non trouvé pour l'UUID : ${uuidMember}`);
       throw new NotFoundException(`Member with UUID ${uuidMember} not found`);
     }
+    
+    this.logger.info(`Membre "${member?.guildUsername || 'inconnu'}" (UUID: ${uuidMember}) supprimé avec succès.`);
     return result;
   }
 
@@ -159,22 +199,27 @@ export class MembersService {
   }
 
   async assignRoleToMember(uuidMember: string, uuidRole: string): Promise<Member> {
+    this.logger.info(`Tentative d'assignation du rôle ${uuidRole} au membre ${uuidMember}`);
+    
     const member = await this.membersRepository.findOne({
         where: { uuidMember },
         relations: ['roles'],
     });
 
     if (!member) {
+        this.logger.warn(`Assignation échouée : Membre non trouvé pour l'UUID : ${uuidMember}`);
         throw new NotFoundException(`Member with UUID ${uuidMember} not found`);
     }
 
     const role = await this.rolesRepository.findOne({ where: { uuidRole } });
     if (!role) {
+        this.logger.warn(`Assignation échouée : Rôle non trouvé pour l'UUID : ${uuidRole}`);
         throw new NotFoundException(`Role with UUID ${uuidRole} not found`);
     }
 
     // Vérifier si le membre possède déjà ce rôle
     if (member.roles.some(r => r.uuidRole === uuidRole)) {
+        this.logger.warn(`Le membre ${uuidMember} possède déjà le rôle ${uuidRole}`);
         throw new BadRequestException(`Member already has the role ${uuidRole}`);
     }
 
@@ -185,32 +230,40 @@ export class MembersService {
     role.memberCount = parseInt(role.memberCount.toString(), 10) + 1;
     await this.rolesRepository.save(role);
 
-    return await this.membersRepository.save(member);
+    const savedMember = await this.membersRepository.save(member);
+    this.logger.info(`Rôle "${role.name}" assigné avec succès au membre "${member.guildUsername}"`);
+    return savedMember;
   }
 
   async removeRoleFromMember(uuidMember: string, uuidRole: string): Promise<Member> {
+    this.logger.info(`Tentative de retrait du rôle ${uuidRole} du membre ${uuidMember}`);
+    
     const member = await this.membersRepository.findOne({
         where: { uuidMember },
         relations: ['roles'],
     });
 
     if (!member) {
+        this.logger.warn(`Retrait échoué : Membre non trouvé pour l'UUID : ${uuidMember}`);
         throw new NotFoundException(`Member with UUID ${uuidMember} not found`);
     }
 
-    const role = await this.rolesRepository.findOne({ where: { uuidRole } });
-    if (!role) {
-        throw new NotFoundException(`Role with UUID ${uuidRole} not found`);
+    const roleIndex = member.roles.findIndex(r => r.uuidRole === uuidRole);
+    if (roleIndex === -1) {
+        this.logger.warn(`Le membre ${uuidMember} ne possède pas le rôle ${uuidRole}`);
+        throw new BadRequestException(`Member does not have the role ${uuidRole}`);
     }
 
-    // Supprimer le rôle du membre
-    member.roles = member.roles.filter(r => r.uuidRole !== uuidRole);
+    const role = member.roles[roleIndex];
+    member.roles.splice(roleIndex, 1);
 
-    // Mettre à jour `member_count`
+    // Décrémenter `member_count`
     role.memberCount = Math.max(0, parseInt(role.memberCount.toString(), 10) - 1);
     await this.rolesRepository.save(role);
 
-    return await this.membersRepository.save(member);
+    const savedMember = await this.membersRepository.save(member);
+    this.logger.info(`Rôle "${role.name}" retiré avec succès du membre "${member.guildUsername}"`);
+    return savedMember;
   }
 
   async addDiscordRoleToMember(uuidMember: string, roleId: string): Promise<any> {

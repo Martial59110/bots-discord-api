@@ -13,14 +13,18 @@ export class CreatePromotionDto extends PickType(PickableDtoFields, [
   uuidGuild: string;
 
   @ApiProperty({ description: 'Date de début de la promotion' })
-  @IsDate()
-  @Type(() => Date)
-  startDate: Date;
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/, {
+    message: 'La date de début doit être au format ISO 8601'
+  })
+  startDate: string;
 
   @ApiProperty({ description: 'Date de fin de la promotion' })
-  @IsDate()
-  @Type(() => Date)
-  endDate: Date;
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/, {
+    message: 'La date de fin doit être au format ISO 8601'
+  })
+  endDate: string;
 
   @ApiProperty({ description: 'UUID de la formation associée' })
   @IsUUID()
@@ -45,10 +49,13 @@ export class CreatePromotionDto extends PickType(PickableDtoFields, [
   @Matches(/^[0-9]+$/)
   uuidRole?: string;
 
-  @ApiProperty({ description: 'UUID du campus associé', required: false })
-  @IsOptional()
+  @ApiProperty({
+    description: 'UUID du campus associé',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    required: true
+  })
   @IsUUID()
-  uuidCampus?: string;
+  uuidCampus: string;
 
   @ApiProperty({ description: 'UUID du cours associé', required: false })
   @IsOptional()
