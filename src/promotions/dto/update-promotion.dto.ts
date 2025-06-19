@@ -10,16 +10,20 @@ export class UpdatePromotionDto extends PartialType(OmitType(CreatePromotionDto,
   name?: string;
 
   @ApiProperty({ description: 'Date de début de la promotion', required: false })
-  @IsDate()
-  @Type(() => Date)
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/, {
+    message: 'La date de début doit être au format ISO 8601'
+  })
   @IsOptional()
-  startDate?: Date;
+  startDate?: string;
 
   @ApiProperty({ description: 'Date de fin de la promotion', required: false })
-  @IsDate()
-  @Type(() => Date)
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/, {
+    message: 'La date de fin doit être au format ISO 8601'
+  })
   @IsOptional()
-  endDate?: Date;
+  endDate?: string;
 
   @ApiProperty({ description: 'Statut de la promotion', required: false })
   @IsString()

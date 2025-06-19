@@ -5,6 +5,7 @@ import { CampusesController } from './campuses.controller';
 import { Campus } from './entities/campus.entity';
 import { Role } from '../roles/entities/role.entity';
 import { DiscordBotModule } from '../discord-bot/discord-bot.module';
+import { CampusBotService } from './campus-bot.service';
 
 @Module({
   imports: [
@@ -12,7 +13,7 @@ import { DiscordBotModule } from '../discord-bot/discord-bot.module';
     DiscordBotModule
   ],
   controllers: [CampusesController],
-  providers: [CampusesService],
+  providers: [CampusesService, CampusBotService],
   exports: [CampusesService]
 })
 export class CampusesModule {}

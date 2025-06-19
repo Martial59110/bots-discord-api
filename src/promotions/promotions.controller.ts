@@ -28,6 +28,7 @@ export class PromotionsController {
     description: 'Données invalides fournies dans la requête.' 
   })
   create(@Body() createPromotionDto: CreatePromotionDto) {
+    
     return this.promotionsService.create(createPromotionDto);
   }
 

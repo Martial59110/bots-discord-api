@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { DiscordBotService } from './discord-bot.service';
 import { DiscordBotController } from './discord-bot.controller';
 import { Client, GatewayIntentBits } from 'discord.js';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
+  imports: [ConfigModule],
   providers: [
     {
       provide: 'DISCORD_CLIENT',

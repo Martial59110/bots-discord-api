@@ -16,10 +16,10 @@ export class Tag {
   description: string;
 
   @ApiProperty({ description: 'Date de création du tag' })
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;
 
   @ApiProperty({ description: 'Date de dernière modification du tag' })
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
   updatedAt: Date;
 }

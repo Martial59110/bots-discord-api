@@ -12,6 +12,7 @@ import { Category } from '../categories/entities/category.entity';
 import { Channel } from '../channels/entities/channel.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { ThreadTemplate } from './entities/thread-template.entity';
+import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class FormationsService {
@@ -33,19 +34,29 @@ export class FormationsService {
 
     private readonly discordBotService: DiscordBotService,
     private readonly channelsService: ChannelsService,
-  ) {}
+    private readonly logger: PinoLogger
+  ) {
+    this.logger.setContext('FormationsService');
+  }
 
   async create(createFormationDto: CreateFormationDto): Promise<Formation> {
+    this.logger.info(`Tentative de création d'une formation "${createFormationDto.name}" pour la guilde ${createFormationDto.uuidGuild}`);
+    
     try {
       const discordClient = this.discordBotService.getClient();
       if (!discordClient.user) {
+        this.logger.error('Échec de la création de la formation : le bot Discord n\'est pas connecté.');
         throw new BadRequestException('Le bot n\'est pas encore connecté à Discord');
       }
+      
       // Récupérer le serveur Discord
       const guild = await discordClient.guilds.fetch(createFormationDto.uuidGuild as string);
       if (!guild) {
+        this.logger.warn(`Serveur Discord non trouvé pour l'UUID : ${createFormationDto.uuidGuild}`);
         throw new BadRequestException('Serveur Discord non trouvé');
       }
+      
+      this.logger.info(`Création de la catégorie pour la formation "${createFormationDto.name}"`);
       // Créer la catégorie en BDD avec un uuid local
       const category = this.categoryRepository.create({
         uuid: uuidv4(),
@@ -54,17 +65,22 @@ export class FormationsService {
         position: 0 // ou à calculer selon besoin
       });
       const savedCategory = await this.categoryRepository.save(category);
+      
       // Récupérer les channels à associer
       let channels: Channel[] = [];
       if (createFormationDto.channelIds && createFormationDto.channelIds.length > 0) {
+        this.logger.info(`Association de ${createFormationDto.channelIds.length} channels à la formation`);
         channels = await this.channelRepository.findByIds(createFormationDto.channelIds);
       }
+      
+      this.logger.info(`Création du rôle Discord pour la formation "${createFormationDto.name}"`);
       // Créer le rôle sur Discord
       const role = await guild.roles.create({
         name: `Formation ${createFormationDto.name}`,
         color: '#000000',
         reason: 'Création automatique du rôle pour la formation'
       });
+      
       // Créer le rôle dans la base de données
       const newRole = this.roleRepository.create({
         uuidRole: role.id,
@@ -76,6 +92,7 @@ export class FormationsService {
         color: role.hexColor,
       });
       const savedRole = await this.roleRepository.save(newRole);
+      
       // Créer la formation
       const newFormation = this.formationRepository.create({
         ...createFormationDto,
@@ -84,8 +101,10 @@ export class FormationsService {
         channels: channels
       });
       const savedFormation = await this.formationRepository.save(newFormation);
+      
       // Enregistrer les threads si présents
       if (createFormationDto.threads && createFormationDto.threads.length > 0) {
+        this.logger.info(`Traitement de ${createFormationDto.threads.length} threads pour la formation`);
         console.log('Payload threads reçu:', createFormationDto.threads);
         // Filtrage des doublons (forumId + name)
         const uniqueThreadsMap = new Map<string, any>();
@@ -119,22 +138,29 @@ export class FormationsService {
           return thread;
         });
         await this.threadTemplateRepository.save(threadEntities);
+        this.logger.info(`${threadEntities.length} threads créés pour la formation`);
         // Log le contenu inséré en BDD
         const inserted = await this.threadTemplateRepository.find({ where: { formationUuidFormation: savedFormation.uuidFormation } });
         console.log('Threads en BDD après insertion:', inserted);
       }
+      
       const result = await this.formationRepository.findOne({
         where: { uuidFormation: savedFormation.uuidFormation },
         relations: ['channels', 'guild', 'category', 'threads']
       });
       if (!result) throw new BadRequestException('Erreur lors de la récupération de la formation après création');
+      
+      this.logger.info(`Formation "${createFormationDto.name}" (UUID: ${savedFormation.uuidFormation}) créée avec succès.`);
       return result;
     } catch (error) {
+      this.logger.error(`Erreur lors de la création de la formation "${createFormationDto.name}"`, error.stack);
       throw new BadRequestException('Erreur lors de la création de la formation: ' + error.message);
     }
   }
 
   async findAll(page: number = 1, limit: number = 5, search?: string, uuidGuild?: string) {
+    this.logger.info(`Récupération des formations - Page: ${page}, Limite: ${limit}, Guilde: ${uuidGuild || 'toutes'}, Recherche: ${search || 'aucune'}`);
+    
     const qb = this.formationRepository.createQueryBuilder('formation')
       .leftJoinAndSelect('formation.channels', 'channels')
       .leftJoinAndSelect('formation.guild', 'guild')
@@ -150,48 +176,71 @@ export class FormationsService {
       qb.andWhere('formation.uuidGuild = :uuidGuild', { uuidGuild });
     }
     const [data, total] = await qb.getManyAndCount();
+    
+    this.logger.info(`${data.length} formations récupérées sur un total de ${total}`);
     return { data, total, page, limit };
   }
 
-  findOne(uuidFormation: string) {
+  async findOne(uuidFormation: string) {
+    this.logger.info(`Recherche de la formation avec l'UUID : ${uuidFormation}`);
+    
     if (!uuidFormation) {
+      this.logger.warn('UUID de la formation manquant');
       throw new NotFoundException('UUID de la formation manquant');
     }
-    return this.formationRepository.findOne({
+    
+    const formation = await this.formationRepository.findOne({
       where: { uuidFormation },
       relations: ['channels', 'guild', 'category', 'threads']
     });
+    
+    if (formation) {
+      this.logger.info(`Formation trouvée pour l'UUID : ${uuidFormation}`);
+    } else {
+      this.logger.warn(`Formation non trouvée pour l'UUID : ${uuidFormation}`);
+    }
+    
+    return formation;
   }
 
   async update(uuidFormation: string, updateFormationDto: UpdateFormationDto) {
+    this.logger.info(`Tentative de mise à jour de la formation avec l'UUID : ${uuidFormation}`);
+    
     const formation = await this.formationRepository.findOne({
       where: { uuidFormation },
       relations: ['channels']
     });
     if (!formation) {
+      this.logger.warn(`Mise à jour échouée : Formation non trouvée pour l'UUID : ${uuidFormation}`);
       throw new NotFoundException(`Formation with UUID "${uuidFormation}" not found`);
     }
 
     // Si le nom change, on met aussi à jour le nom du rôle Discord
     if (updateFormationDto.name && updateFormationDto.name !== formation.name) {
+      this.logger.info(`Mise à jour du nom de formation de "${formation.name}" vers "${updateFormationDto.name}"`);
+      
       const discordClient = this.discordBotService.getClient();
       if (!discordClient.user) {
+        this.logger.error('Échec de la mise à jour : le bot Discord n\'est pas connecté.');
         throw new BadRequestException('Le bot n\'est pas encore connecté à Discord');
       }
 
       const guild = await discordClient.guilds.fetch(formation.uuidGuild as string);
       if (!guild) {
+        this.logger.warn(`Serveur Discord non trouvé pour la formation ${uuidFormation}`);
         throw new BadRequestException('Serveur Discord non trouvé');
       }
 
       const role = await guild.roles.fetch(formation.uuidRole);
       if (role) {
         await role.setName(`Formation ${updateFormationDto.name}`, 'Mise à jour du nom de la formation');
+        this.logger.info(`Rôle Discord mis à jour pour la formation "${updateFormationDto.name}"`);
       }
     }
 
     // Mise à jour des channels associés
     if (updateFormationDto.channelIds) {
+      this.logger.info(`Mise à jour des channels associés (${updateFormationDto.channelIds.length} channels)`);
       const channels = await this.channelRepository.findByIds(updateFormationDto.channelIds);
       formation.channels = channels;
     }
@@ -200,7 +249,13 @@ export class FormationsService {
       formation.name = updateFormationDto.name;
     }
 
-    return this.formationRepository.save(formation);
+    const updatedFormation = await this.formationRepository.save(formation);
+    this.logger.info(`Formation "${updatedFormation.name}" (UUID: ${uuidFormation}) mise à jour avec succès.`);
+    
+    return this.formationRepository.findOne({
+      where: { uuidFormation },
+      relations: ['channels', 'guild', 'category', 'threads']
+    });
   }
 
   async remove(uuidFormation: string) {

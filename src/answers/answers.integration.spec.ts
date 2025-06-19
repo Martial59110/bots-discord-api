@@ -8,10 +8,15 @@ import { typeOrmConfig } from 'src/config/typeorm.config';
 import { QuestionsModule } from 'src/questions/questions.module';
 import { PollsModule } from 'src/polls/polls.module';
 import { MembersModule } from 'src/members/members.module';
+import { AnswersService } from './answers.service';
+import { ConfigModule } from '@nestjs/config';
+import { DiscordBotModule } from '../discord-bot/discord-bot.module';
+import { Answer } from './entities/answer.entity';
 
 describe('Answers Integration Tests', () => {
   let app: INestApplication;
   let moduleRef: TestingModule;
+  let service: AnswersService;
 
   const testAnswer = {
     content: 'Test answer',
@@ -21,25 +26,38 @@ describe('Answers Integration Tests', () => {
   beforeAll(async () => {
     moduleRef = await Test.createTestingModule({
       imports: [
+        ConfigModule.forRoot(),
+        DiscordBotModule,
         TypeOrmModule.forRoot({
-          ...typeOrmConfig,
-            synchronize: true,
-            logging: true,
+          type: 'sqlite',
+          database: ':memory:',
+          entities: [Answer],
+          synchronize: true,
         }),
+        TypeOrmModule.forFeature([Answer]),
         AnswersModule,
         QuestionsModule,
         PollsModule,
         MembersModule,
       ],
+      providers: [AnswersService],
     }).compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe());
     await app.init();
+
+    service = moduleRef.get<AnswersService>(AnswersService);
   });
 
   afterAll(async () => {
-      await app.close();
+    if (moduleRef) {
+      await moduleRef.close();
+    }
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
   });
 
   describe('/POST answers', () => {

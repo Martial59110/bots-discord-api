@@ -32,13 +32,13 @@ export class Campus {
   @ApiProperty({
     description: 'Date de création'
   })
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   createdAt: Date;
 
   @ApiProperty({
     description: 'Date de dernière mise à jour'
   })
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
   updatedAt: Date;
 
   @ApiProperty({

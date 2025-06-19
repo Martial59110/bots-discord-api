@@ -55,14 +55,14 @@ export class Role {
     description: 'Date de création du rôle',
     example: '2024-02-18T10:00:00Z'
   })
-  @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
+  @CreateDateColumn({ type: 'timestamp with time zone', name: 'created_at' })
   createdAt: Date;
 
   @ApiProperty({
     description: 'Date de dernière mise à jour du rôle',
     example: '2024-02-18T10:00:00Z'
   })
-  @UpdateDateColumn({ type: 'timestamp', name: 'updated_at' })
+  @UpdateDateColumn({ type: 'timestamp with time zone', name: 'updated_at' })
   updatedAt: Date;
 
   @ApiProperty({

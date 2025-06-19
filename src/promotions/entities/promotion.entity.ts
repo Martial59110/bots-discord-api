@@ -115,7 +115,7 @@ export class Promotion {
     description: 'UUID du campus associé',
     example: '123e4567-e89b-12d3-a456-426614174000'
   })
-  @Column({ name: 'uuid_campus', type: 'uuid', nullable: true })
+  @Column({ name: 'uuid_campus', type: 'uuid', nullable: false })
   uuidCampus: string;
 
   @ApiProperty({

@@ -53,7 +53,7 @@ export class PollTemplate {
 
   @CreateDateColumn({
     name: 'created_at',
-    type: 'timestamp',
+    type: 'timestamp with time zone',
     default: () => 'CURRENT_TIMESTAMP'
   })
   @ApiProperty({
@@ -64,7 +64,7 @@ export class PollTemplate {
 
   @UpdateDateColumn({
     name: 'updated_at',
-    type: 'timestamp',
+    type: 'timestamp with time zone',
     nullable: true
   })
   @ApiProperty({

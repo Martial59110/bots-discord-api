@@ -47,7 +47,7 @@ export class Question {
     })
     @CreateDateColumn({
         name: 'created_at',
-        type: 'timestamp',
+        type: 'timestamp with time zone',
         default: () => 'CURRENT_TIMESTAMP'
     })
     createdAt: Date;
@@ -58,7 +58,7 @@ export class Question {
     })
     @UpdateDateColumn({
         name: 'updated_at',
-        type: 'timestamp',
+        type: 'timestamp with time zone',
         nullable: true
     })
     updatedAt: Date;

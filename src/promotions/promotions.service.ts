@@ -1,15 +1,16 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { UpdatePromotionDto } from './dto/update-promotion.dto';
 import { Promotion } from './entities/promotion.entity';
 import { Role } from '../roles/entities/role.entity';
 import { Member } from '../members/entities/member.entity';
 import { FormationsService } from '../formations/formations.service';
-import { DiscordBotService } from '../discord-bot/discord-bot.service';
-import { ChannelType } from 'discord.js';
 import { Category } from '../categories/entities/category.entity';
+import { PinoLogger } from 'nestjs-pino';
+import { PromotionsBotService } from './promotions-bot.service';
+import { ChannelType } from 'discord.js';
 
 @Injectable()
 export class PromotionsService {
@@ -27,20 +28,25 @@ export class PromotionsService {
     private categoryRepository: Repository<Category>,
 
     private readonly formationsService: FormationsService,
-    private readonly discordBotService: DiscordBotService,
-  ) {}
+    private readonly promotionsBotService: PromotionsBotService,
+    private readonly logger: PinoLogger
+  ) {
+    this.logger.setContext('PromotionsService');
+  }
 
   async create(createPromotionDto: CreatePromotionDto): Promise<Promotion> {
     try {
-      console.log('Payload reçu pour création de promotion :', createPromotionDto);
-      // --- CRÉATION DU RÔLE SUR DISCORD ---
-      const discordClient = this.discordBotService.getClient();
-      const guild = await discordClient.guilds.fetch(createPromotionDto.uuidGuild);
-      const discordRole = await guild.roles.create({
-        name: createPromotionDto.name,
-        color: '#000000',
-        reason: 'Création automatique du rôle pour la promotion'
-      });
+      this.logger.info({ createPromotionDto }, 'Création d\'une nouvelle promotion');
+      
+      const startDate = new Date(createPromotionDto.startDate);
+      const endDate = new Date(createPromotionDto.endDate);
+
+      // Création du rôle Discord
+      const discordRole = await this.promotionsBotService.createPromotionRole(
+        createPromotionDto.uuidGuild,
+        createPromotionDto.name
+      );
+
       // Sauvegarde du rôle en BDD
       const newRole = this.roleRepository.create({
         uuidRole: discordRole.id,
@@ -52,128 +58,298 @@ export class PromotionsService {
         color: discordRole.hexColor,
       });
       const savedRole = await this.roleRepository.save(newRole);
-      // Création de la promotion avec le rôle associé
+
+      // Création de la promotion
       const newPromotion = this.promotionRepository.create({
         ...createPromotionDto,
-        uuidRole: savedRole.uuidRole, // Associe le rôle créé à la promotion
+        startDate,
+        endDate,
+        uuidRole: savedRole.uuidRole,
+        uuidCampus: createPromotionDto.uuidCampus
       });
       const savedPromotion = await this.promotionRepository.save(newPromotion);
 
-      // --- LOGIQUE DISCORD POUR LA STRUCTURE ---
+      // Création de la structure Discord
       const formation = await this.formationsService.findOne(createPromotionDto.uuidFormation);
       if (!formation) throw new NotFoundException('Formation non trouvée');
-      // Créer la catégorie Discord
-      const category = await guild.channels.create({
-        name: createPromotionDto.name,
-        type: ChannelType.GuildCategory,
-        permissionOverwrites: [
-          {
-            id: guild.id, // @everyone
-            deny: ['ViewChannel'],
-          },
-          {
-            id: discordRole.id, // Le rôle de la promotion
-            allow: ['ViewChannel'],
-          }
-        ]
-      });
-      console.log('Catégorie Discord créée :', category.id, 'type:', category.type);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      // Créer la catégorie en BDD
+
+      // Création de la catégorie Discord
+      const category = await this.promotionsBotService.createPromotionCategory(
+        createPromotionDto.uuidGuild,
+        createPromotionDto.name,
+        discordRole.id
+      );
+
+      // Sauvegarde de la catégorie en BDD
       await this.categoryRepository.save({
         uuid: category.id,
         name: category.name,
         uuidGuild: createPromotionDto.uuidGuild,
         position: category.position
       });
-      // 1. Créer tous les channels et stocker les forums créés
+
+   
       const sortedChannels = formation.channels.slice().sort((a, b) => (a.channelPosition ?? 0) - (b.channelPosition ?? 0));
-      const createdForums: { [templateForumId: string]: string } = {};
-      const createdChannels: any[] = [];
-      for (const ch of sortedChannels) {
-        const channelType = this.mapChannelType(ch.type);
-        let channelData: any = {
-          name: ch.name,
-          type: channelType,
-          position: ch.channelPosition
-        };
-        if (category && category.type === ChannelType.GuildCategory) {
-          channelData.parent = category.id;
-        }
-        if (channelType === ChannelType.GuildForum) {
-          channelData = {
-            name: ch.name,
-            type: channelType,
-            position: ch.channelPosition,
-            parent: channelData.parent
-          };
-        }
-        console.log('Création channel Discord (nettoyé) :', channelData);
-        const createdChannel = await guild.channels.create(channelData);
-        createdChannels.push(createdChannel);
-        // Si c'est un forum, mappe l'ID du template à l'ID Discord créé
-        if (channelType === ChannelType.GuildForum && ch.uuid) {
-          createdForums[ch.uuid] = createdChannel.id;
-        }
-      }
-      // Attendre la propagation Discord (par exemple 1 seconde)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Récupérer tous les channels enfants de la catégorie (hors threads)
-      const validTypes = [0, 2, 5, 15]; // 0: GUILD_TEXT, 2: GUILD_VOICE, 5: GUILD_ANNOUNCEMENT, 15: GUILD_FORUM
-      const allCategoryChannels = guild.channels.cache
-        .filter(c => c.parentId === category.id && validTypes.includes(c.type))
-        .sort((a, b) => (Number((a as any).rawPosition ?? 0) - Number((b as any).rawPosition ?? 0)));
-      // Construire l'ordre final (channels du template d'abord, puis les autres)
-      const finalOrder = sortedChannels.map((ch) => {
-        const discordChannel = allCategoryChannels.find(dc => dc.name === ch.name && dc.type === this.mapChannelType(ch.type));
-        return discordChannel
-          ? { channel: discordChannel.id, position: Number(ch.channelPosition) }
-          : null;
-      }).filter((f): f is { channel: string; position: number } => f !== null);
-      // Ajouter les autres channels de la catégorie à la fin
-      allCategoryChannels.forEach((c, idx) => {
-        if (!finalOrder.find(f => f.channel === c.id)) {
-          finalOrder.push({ channel: c.id, position: Number(sortedChannels.length + idx) });
-        }
-      });
-      try {
-        await guild.channels.setPositions(finalOrder);
-      } catch (e) {
-        console.warn('Erreur lors du bulk setPositions des channels', e);
-      }
-      // 2. Créer les threads dans les forums créés
+      const { createdForums } = await this.promotionsBotService.createPromotionChannels(
+        createPromotionDto.uuidGuild,
+        category.id,
+        sortedChannels
+      );
+
+    
       if (formation.threads && formation.threads.length > 0) {
-        const sortedThreads = formation.threads.slice().sort((a, b) => (a.threadPosition ?? 0) - (b.threadPosition ?? 0));
-        for (const thread of sortedThreads.reverse()) {
-          // Récupère l'ID Discord du forum à partir de l'ID du template
-          const discordForumId = createdForums[thread.forumId];
-          const forum = guild.channels.cache.get(discordForumId);
-          console.log('Création thread dans forum', discordForumId, 'type:', forum?.type);
-          if (forum && forum.type === ChannelType.GuildForum && typeof (forum as any).threads?.create === 'function') {
-            await (forum as any).threads.create({ name: thread.name, message: { content: "Bienvenue dans ce thread !" } });
-          } else {
-            console.warn('Impossible de créer le thread, forumId non trouvé ou mauvais type:', discordForumId, forum?.type);
-          }
-        }
+        await this.promotionsBotService.createPromotionThreads(
+          createPromotionDto.uuidGuild,
+          createdForums,
+          formation.threads
+        );
       }
-      // Mettre à jour la promotion avec l'ID de la catégorie Discord
+
+      // Mise à jour de la promotion avec l'ID de la catégorie
       savedPromotion.uuidCategory = category.id;
       await this.promotionRepository.save(savedPromotion);
+
       return savedPromotion;
     } catch (error) {
-      console.error('Erreur complète lors de la création de la promotion :', error);
+      this.logger.error({ error }, 'Erreur lors de la création de la promotion');
       throw new BadRequestException('Erreur lors de la création de la promotion: ' + error.message);
     }
   }
 
-  mapChannelType(type: string) {
-    switch (type) {
-      case 'text': return ChannelType.GuildText;
-      case 'voice': return ChannelType.GuildVoice;
-      case 'forum': return ChannelType.GuildForum;
-      case 'announcement': return ChannelType.GuildAnnouncement;
-      default: return ChannelType.GuildText;
+  async update(uuid: string, updatePromotionDto: UpdatePromotionDto): Promise<Promotion> {
+    const promotion = await this.promotionRepository.findOne({
+      where: { uuid_promotion: uuid },
+      relations: ['followers', 'managers', 'category', 'formation', 'guild', 'role', 'campus']
+    });
+
+    if (!promotion) {
+      throw new NotFoundException(`Promotion avec UUID ${uuid} non trouvée`);
     }
+
+    const updatedData = {
+      ...updatePromotionDto,
+      startDate: updatePromotionDto.startDate ? new Date(updatePromotionDto.startDate) : undefined,
+      endDate: updatePromotionDto.endDate ? new Date(updatePromotionDto.endDate) : undefined,
+      updatedAt: new Date()
+    };
+
+    Object.assign(promotion, updatedData);
+
+    // Mise à jour du rôle Discord si le nom est modifié
+    if (updatePromotionDto.name && promotion.uuidRole) {
+      try {
+        await this.promotionsBotService.updatePromotionRole(
+          promotion.uuidGuild,
+          promotion.uuidRole,
+          updatePromotionDto.name
+        );
+      } catch (error) {
+        this.logger.warn({ error }, `Impossible de renommer le rôle Discord ${promotion.uuidRole}`);
+      }
+    }
+
+    // Mise à jour de la position si spécifiée
+    if (typeof updatePromotionDto.position === 'number' && promotion.uuidCategory) {
+      try {
+        await this.promotionsBotService.updateCategoryPosition(
+          promotion.uuidGuild,
+          promotion.uuidCategory,
+          updatePromotionDto.position
+        );
+
+        if (promotion.category) {
+          promotion.category.position = updatePromotionDto.position;
+          await this.categoryRepository.save(promotion.category);
+        }
+      } catch (error) {
+        this.logger.warn({ error }, 'Erreur lors de la mise à jour de la position de la catégorie');
+      }
+    }
+
+    return await this.promotionRepository.save(promotion);
+  }
+
+  async remove(uuid: string) {
+    const promotion = await this.findOne(uuid);
+    
+    try {
+  
+      if (promotion.followers) {
+        const promoWithCampus = promotion.campus
+          ? promotion
+          : await this.promotionRepository.findOne({
+              where: { uuid_promotion: promotion.uuid_promotion },
+              relations: ['campus'],
+            });
+        for (const member of promotion.followers) {
+          if (member.uuidGuild && member.uuidDiscord) {
+            try {
+              const roleIds = [promotion.uuidRole];
+              if (promoWithCampus?.campus?.uuidRole) {
+                const otherPromos = await this.promotionRepository
+                  .createQueryBuilder('promotion')
+                  .innerJoin('promotion.followers', 'follower')
+                  .where('promotion.uuid_campus = :uuidCampus', { uuidCampus: promoWithCampus.campus.uuidCampus })
+                  .andWhere('follower.uuidMember = :uuidMember', { uuidMember: member.uuidMember })
+                  .andWhere('promotion.uuid_promotion != :uuidPromotion', { uuidPromotion: promotion.uuid_promotion })
+                  .getCount();
+                
+                if (otherPromos === 0) {
+                  roleIds.push(promoWithCampus.campus.uuidRole);
+                }
+              }
+
+              await this.promotionsBotService.removeMemberRoles(
+                member.uuidGuild,
+                member.uuidDiscord,
+                roleIds
+              );
+            } catch (e) {
+              this.logger.warn({ error: e }, 'Erreur lors du retrait des rôles Discord');
+            }
+          }
+        }
+      }
+
+      // Suppression des channels Discord
+      if (promotion.uuidCategory) {
+        await this.promotionsBotService.deletePromotionChannels(
+          promotion.uuidGuild,
+          promotion.uuidCategory
+        );
+      }
+
+      // Suppression de la promotion de la BDD
+      await this.promotionRepository.remove(promotion);
+      
+      return promotion;
+    } catch (error) {
+      this.logger.error({ error }, 'Erreur lors de la suppression de la promotion');
+      throw new BadRequestException('Erreur lors de la suppression de la promotion : ' + error.message);
+    }
+  }
+
+  async addFollower(uuidPromotion: string, uuidMember: string): Promise<Promotion> {
+    this.logger.info({ uuidPromotion, uuidMember }, 'Tentative d\'ajout d\'un follower à une promotion');
+
+    const promotion = await this.promotionRepository.findOne({
+      where: { uuid_promotion: uuidPromotion }
+    });
+    if (!promotion) {
+      throw new NotFoundException(`Promotion avec UUID ${uuidPromotion} non trouvée`);
+    }
+
+    const member = await this.memberRepository.findOneBy({ uuidMember });
+    if (!member) {
+      throw new NotFoundException(`Membre avec UUID ${uuidMember} non trouvé`);
+    }
+
+    const existingRelation = await this.promotionRepository
+      .createQueryBuilder('promotion')
+      .innerJoin('promotion.followers', 'follower')
+      .where('promotion.uuid_promotion = :uuidPromotion', { uuidPromotion })
+      .andWhere('follower.uuidMember = :uuidMember', { uuidMember })
+      .getOne();
+
+    if (existingRelation) {
+      throw new BadRequestException(`Le membre est déjà follower de cette promotion`);
+    }
+
+    try {
+      await this.promotionRepository
+        .createQueryBuilder()
+        .relation(Promotion, 'followers')
+        .of(promotion.uuid_promotion)
+        .add(member.uuidMember);
+
+      if (promotion.uuidRole && member.uuidGuild && member.uuidDiscord) {
+        try {
+          const roleIds = [promotion.uuidRole];
+
+          const campus = promotion.campus ?? (await this.promotionRepository.createQueryBuilder('promotion')
+            .leftJoinAndSelect('promotion.campus', 'campus')
+            .where('promotion.uuid_promotion = :uuidPromotion', { uuidPromotion })
+            .getOne())?.campus;
+
+          if (campus?.uuidRole) {
+            roleIds.push(campus.uuidRole);
+          }
+
+          await this.promotionsBotService.addMemberRoles(
+            member.uuidGuild,
+            member.uuidDiscord,
+            roleIds
+          );
+        } catch (error) {
+          this.logger.error({ error }, 'Erreur lors de l\'ajout des rôles Discord');
+        }
+      }
+
+      const updatedPromotion = await this.promotionRepository.findOne({
+        where: { uuid_promotion: uuidPromotion },
+        relations: ['followers']
+      });
+      
+      if (!updatedPromotion) {
+        throw new NotFoundException(`Promotion avec UUID ${uuidPromotion} non trouvée après mise à jour`);
+      }
+
+      return updatedPromotion;
+    } catch (error) {
+      this.logger.error({ error }, 'Erreur lors de l\'ajout du follower');
+      throw error;
+    }
+  }
+
+  async removeFollower(uuidPromotion: string, uuidMember: string): Promise<Promotion> {
+    const promotion = await this.promotionRepository.findOne({
+      where: { uuid_promotion: uuidPromotion },
+      relations: ['followers']
+    });
+    if (!promotion) throw new NotFoundException('Promotion not found');
+
+    const member = await this.memberRepository.findOneBy({ uuidMember });
+    if (!member) throw new NotFoundException('Member not found');
+
+    promotion.followers = promotion.followers.filter(f => f.uuidMember !== uuidMember);
+    const savedPromotion = await this.promotionRepository.save(promotion);
+
+    if (member.uuidGuild && member.uuidDiscord) {
+      try {
+        const roleIds = [promotion.uuidRole];
+
+        const promoWithCampus = promotion.campus
+          ? promotion
+          : await this.promotionRepository.findOne({
+              where: { uuid_promotion: uuidPromotion },
+              relations: ['campus'],
+            });
+
+        if (promoWithCampus?.campus?.uuidRole) {
+          const otherPromos = await this.promotionRepository
+            .createQueryBuilder('promotion')
+            .innerJoin('promotion.followers', 'follower')
+            .where('promotion.uuid_campus = :uuidCampus', { uuidCampus: promoWithCampus.campus.uuidCampus })
+            .andWhere('follower.uuidMember = :uuidMember', { uuidMember: member.uuidMember })
+            .andWhere('promotion.uuid_promotion != :uuidPromotion', { uuidPromotion: promotion.uuid_promotion })
+            .getCount();
+
+          if (otherPromos === 0) {
+            roleIds.push(promoWithCampus.campus.uuidRole);
+          }
+        }
+
+        await this.promotionsBotService.removeMemberRoles(
+          member.uuidGuild,
+          member.uuidDiscord,
+          roleIds
+        );
+      } catch (e) {
+        this.logger.warn({ error: e }, 'Erreur lors du retrait des rôles Discord');
+      }
+    }
+
+    return savedPromotion;
   }
 
   async findAll(page: number = 1, limit: number = 10, search?: string) {
@@ -181,36 +357,29 @@ export class PromotionsService {
       .leftJoinAndSelect('promotion.category', 'category')
       .leftJoinAndSelect('promotion.guild', 'guild')
       .leftJoinAndSelect('promotion.followers', 'followers')
-      .select([
-        'promotion.uuid_promotion',
-        'promotion.name',
-        'promotion.status',
-        'promotion.uuidGuild',
-        'promotion.createdAt',
-        'category.position',
-        'guild.name',
-        'guild.uuid',
-      ])
+      .leftJoinAndSelect('promotion.campus', 'campus')
       .orderBy('category.position', 'ASC')
-      .addOrderBy('promotion.createdAt', 'DESC');
-
+      .addOrderBy('promotion.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+  
     if (search) {
       queryBuilder.where('promotion.name ILIKE :search', { search: `%${search}%` });
     }
-
-    const [data, total] = await queryBuilder
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
-
-    // On enrichit la réponse pour le front
-    const dataWithInfos = data.map(promo => ({
+  
+    const promos = await queryBuilder.getMany();
+  
+    const dataWithInfos = promos.map(promo => ({
       ...promo,
       guildName: promo.guild?.name ?? promo.uuidGuild,
       memberCount: promo.followers?.length ?? 0,
       categoryPosition: promo.category?.position ?? null
     }));
-
+  
+    const total = await this.promotionRepository.count({
+      where: search ? { name: ILike(`%${search}%`) } : {}
+    });
+  
     return { data: dataWithInfos, total, page, limit };
   }
 
@@ -224,199 +393,6 @@ export class PromotionsService {
       throw new NotFoundException(`Promotion avec UUID ${uuid} non trouvée`);
     }
     return promotion;
-  }
-
-  async update(uuid: string, updatePromotionDto: UpdatePromotionDto): Promise<Promotion> {
-    const promotion = await this.promotionRepository.findOne({
-      where: { uuid_promotion: uuid },
-      relations: ['followers', 'managers', 'category', 'formation', 'guild', 'role', 'campus']
-    });
-
-    if (!promotion) {
-      throw new NotFoundException(`Promotion avec UUID ${uuid} non trouvée`);
-    }
-
-    // Mise à jour des champs autorisés
-    Object.assign(promotion, updatePromotionDto);
-    promotion.updatedAt = new Date();
-
-    // Si le nom est modifié, mettre à jour le rôle Discord
-    if (updatePromotionDto.name && promotion.uuidRole) {
-      try {
-        const discordClient = this.discordBotService.getClient();
-        const guild = await discordClient.guilds.fetch(promotion.uuidGuild);
-        const role = await guild.roles.fetch(promotion.uuidRole);
-        if (role) {
-          await role.setName(updatePromotionDto.name, 'Mise à jour du nom de la promotion');
-          console.log(`Rôle Discord renommé : ${promotion.uuidRole}`);
-        }
-      } catch (error) {
-        console.warn(`Impossible de renommer le rôle Discord ${promotion.uuidRole}:`, error);
-      }
-    }
-
-    // Si la position est spécifiée, mettre à jour la position sur Discord
-    if (typeof updatePromotionDto.position === 'number' && promotion.uuidCategory) {
-      try {
-        const discordClient = this.discordBotService.getClient();
-        const guild = await discordClient.guilds.fetch(promotion.uuidGuild);
-        const category = await guild.channels.fetch(promotion.uuidCategory);
-
-        if (category) {
-          // Récupérer toutes les catégories du serveur
-          const categoriesArr = Array.from(guild.channels.cache
-            .filter(c => c.type === ChannelType.GuildCategory)
-            .sort((a, b) => a.position - b.position)
-            .values());
-
-          // Retirer la catégorie à déplacer
-          const otherCategories = categoriesArr.filter(c => c.id !== category.id);
-          // Insérer la catégorie à la bonne position
-          const newCategories = [
-            ...otherCategories.slice(0, updatePromotionDto.position),
-            category,
-            ...otherCategories.slice(updatePromotionDto.position)
-          ];
-
-          // Construire le tableau de positions
-          const positions = newCategories.map((c, idx) => ({
-            channel: c.id,
-            position: idx
-          }));
-
-          await guild.channels.setPositions(positions);
-
-          // Mettre à jour la position en BDD
-          if (promotion.category) {
-            promotion.category.position = updatePromotionDto.position;
-            await this.categoryRepository.save(promotion.category);
-          }
-        }
-      } catch (error) {
-        console.warn('Erreur lors de la mise à jour de la position de la catégorie:', error);
-      }
-    }
-
-    return await this.promotionRepository.save(promotion);
-  }
-
-  async remove(uuid: string) {
-    const promotion = await this.findOne(uuid);
-    
-    try {
-      const discordClient = this.discordBotService.getClient();
-      // Retirer le rôle Discord à tous les followers
-      if (promotion.followers && promotion.uuidRole) {
-        for (const member of promotion.followers) {
-          if (member.uuidGuild && member.uuidDiscord) {
-            try {
-              const guild = await discordClient.guilds.fetch(member.uuidGuild);
-              const guildMember = await guild.members.fetch(member.uuidDiscord);
-              await guildMember.roles.remove(promotion.uuidRole);
-            } catch (e) {
-              // Optionnel : log ou ignorer si le membre n'est pas sur le serveur
-            }
-          }
-        }
-      }
-
-      // 2. Supprimer la catégorie et tous ses channels
-      if (promotion.uuidCategory) {
-        try {
-          const guild = await discordClient.guilds.fetch(promotion.uuidGuild);
-          const category = await guild.channels.fetch(promotion.uuidCategory);
-          if (category) {
-            // Supprimer tous les channels de la catégorie
-            const channels = guild.channels.cache.filter(c => c.parentId === promotion.uuidCategory && c.type !== ChannelType.GuildCategory.valueOf());
-            for (const channel of channels.values()) {
-              try {
-                await channel.delete('Suppression de la promotion');
-                console.log(`Channel Discord supprimé : ${channel.id}`);
-              } catch (error) {
-                console.warn(`Impossible de supprimer le channel ${channel.id}:`, error);
-              }
-            }
-            // Supprimer la catégorie elle-même
-            await category.delete('Suppression de la promotion');
-            console.log(`Catégorie Discord supprimée : ${promotion.uuidCategory}`);
-          }
-        } catch (error) {
-          console.warn(`Impossible de supprimer la catégorie Discord ${promotion.uuidCategory}:`, error);
-        }
-      }
-
-      // 3. Supprimer la promotion de la base de données
-      await this.promotionRepository.remove(promotion);
-      console.log(`Promotion supprimée de la base de données : ${uuid}`);
-      
-      return promotion;
-    } catch (error) {
-      console.error('Erreur lors de la suppression de la promotion :', error);
-      throw new BadRequestException('Erreur lors de la suppression de la promotion : ' + error.message);
-    }
-  }
-
-  async addFollower(uuidPromotion: string, uuidMember: string): Promise<Promotion> {
-    console.log('=== DÉBUT addFollower ===');
-    console.log('Paramètres reçus:', { uuidPromotion, uuidMember });
-
-    // Vérifier que la promotion existe
-    const promotion = await this.promotionRepository.findOne({
-      where: { uuid_promotion: uuidPromotion }
-    });
-    if (!promotion) {
-      throw new NotFoundException(`Promotion avec UUID ${uuidPromotion} non trouvée`);
-    }
-
-    // Vérifier que le membre existe
-    const member = await this.memberRepository.findOneBy({ uuidMember });
-    if (!member) {
-      throw new NotFoundException(`Membre avec UUID ${uuidMember} non trouvé`);
-    }
-
-    // Vérifier si le membre est déjà follower
-    const existingRelation = await this.promotionRepository
-      .createQueryBuilder('promotion')
-      .innerJoin('promotion.followers', 'follower')
-      .where('promotion.uuid_promotion = :uuidPromotion', { uuidPromotion })
-      .andWhere('follower.uuidMember = :uuidMember', { uuidMember })
-      .getOne();
-
-    if (existingRelation) {
-      throw new BadRequestException(`Le membre est déjà follower de cette promotion`);
-    }
-
-    // Insérer directement dans la table de jointure
-    await this.promotionRepository
-    .createQueryBuilder()
-    .relation(Promotion, 'followers')
-    .of(promotion.uuid_promotion) // UUID pur, pas l'objet
-    .add(member.uuidMember);      // UUID pur, pas l'objet
-  ;
-
-    // --- AJOUT DU RÔLE DISCORD ---
-    if (promotion.uuidRole && member.uuidGuild && member.uuidDiscord) {
-      try {
-        const discordClient = this.discordBotService.getClient();
-        const guild = await discordClient.guilds.fetch(member.uuidGuild);
-        const guildMember = await guild.members.fetch(member.uuidDiscord);
-        await guildMember.roles.add(promotion.uuidRole);
-      } catch (e) {
-        console.error('Erreur lors de l\'ajout du rôle Discord:', e);
-      }
-    }
-
-    // Retourner la promotion mise à jour
-    const updatedPromotion = await this.promotionRepository.findOne({
-      where: { uuid_promotion: uuidPromotion },
-      relations: ['followers']
-    });
-    
-    if (!updatedPromotion) {
-      throw new NotFoundException(`Promotion avec UUID ${uuidPromotion} non trouvée après mise à jour`);
-    }
-    
-    return updatedPromotion;
   }
 
   async addManager(uuidPromotion: string, uuidMember: string): Promise<Promotion> {
@@ -466,7 +442,7 @@ export class PromotionsService {
     }
 
     try {
-      const discordClient = this.discordBotService.getClient();
+      const discordClient = this.promotionsBotService.getClient();
       const guild = await discordClient.guilds.fetch(promotion.uuidGuild);
       const category = await guild.channels.fetch(promotion.uuidCategory);
       
@@ -522,34 +498,5 @@ export class PromotionsService {
     });
     if (!promo) throw new NotFoundException('Promotion not found');
     return promo.followers || [];
-  }
-
-  async removeFollower(uuidPromotion: string, uuidMember: string): Promise<Promotion> {
-    const promotion = await this.promotionRepository.findOne({
-      where: { uuid_promotion: uuidPromotion },
-      relations: ['followers']
-    });
-    if (!promotion) throw new NotFoundException('Promotion not found');
-
-    const member = await this.memberRepository.findOneBy({ uuidMember });
-    if (!member) throw new NotFoundException('Member not found');
-
-    // Retirer le membre des followers
-    promotion.followers = promotion.followers.filter(f => f.uuidMember !== uuidMember);
-    const savedPromotion = await this.promotionRepository.save(promotion);
-
-    // --- RETRAIT DU RÔLE DISCORD ---
-    if (promotion.uuidRole && member.uuidGuild && member.uuidDiscord) {
-      try {
-        const discordClient = this.discordBotService.getClient();
-        const guild = await discordClient.guilds.fetch(member.uuidGuild);
-        const guildMember = await guild.members.fetch(member.uuidDiscord);
-        await guildMember.roles.remove(promotion.uuidRole);
-      } catch (e) {
-        // Optionnel : log ou ignorer si le membre n'est pas sur le serveur
-      }
-    }
-
-    return savedPromotion;
   }
 }

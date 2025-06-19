@@ -40,20 +40,13 @@ export class Category {
   @ApiProperty({
     description: 'Date de création'
   })
-  @CreateDateColumn({
-    name: 'created_at',
-    type: 'timestamp',
-  })
+  @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;
 
   @ApiProperty({
     description: 'Date de dernière mise à jour'
   })
-  @UpdateDateColumn({
-    name: 'updated_at',
-    type: 'timestamp',
-    nullable: true,
-  })
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
   updatedAt: Date;
 
   @ApiProperty({
