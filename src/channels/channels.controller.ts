@@ -4,9 +4,12 @@ import { CreateChannelDto } from './dto/create-channel.dto';
 import { UpdateChannelDto } from './dto/update-channel.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Channel } from './entities/channel.entity';
+import { Public } from 'src/auth/decorators/public.decorator';
+
 
 @ApiTags('channels')
 @Controller('channels')
+@Public()
 export class ChannelsController {
   constructor(private readonly channelService: ChannelsService) {}
 
