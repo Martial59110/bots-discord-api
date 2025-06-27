@@ -1,78 +1,142 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, NotFoundException, HttpStatus, Query, Patch, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Query,
+  HttpStatus,
+  HttpCode,
+  ParseIntPipe,
+  NotFoundException,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { PromotionsService } from './promotions.service';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { UpdatePromotionDto } from './dto/update-promotion.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam } from '@nestjs/swagger';
 import { Promotion } from './entities/promotion.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('promotions')
 @Controller('promotions')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class PromotionsController {
   constructor(
     private readonly promotionsService: PromotionsService
-    ) {}
+  ) {}
 
   @Post()
-  @ApiOperation({ 
-    summary: 'Créer une promotion',
-    description: 'Crée une promotion avec un rôle associé et l\'enregistre en base de données.'
-  })
-  @ApiBody({ type: CreatePromotionDto })
+  @Roles('admin', 'director', 'project-manager')
+  @ApiOperation({ summary: 'Créer une nouvelle promotion' })
   @ApiResponse({ 
-    status: HttpStatus.CREATED, 
-    description: 'La promotion a été créée avec succès.',
+    status: 201, 
+    description: 'Promotion créée avec succès',
     type: Promotion 
   })
   @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Données invalides fournies dans la requête.' 
+    status: 400, 
+    description: 'Données invalides' 
   })
-  create(@Body() createPromotionDto: CreatePromotionDto) {
-    
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Accès refusé - rôle insuffisant' 
+  })
+  async create(@Body() createPromotionDto: CreatePromotionDto): Promise<Promotion> {
+    // Utiliser directement le service de base sans workflow de suppression automatique
     return this.promotionsService.create(createPromotionDto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Récupérer toutes les promotions' })
-  @ApiResponse({ status: 200, description: 'Liste des promotions récupérée avec succès.', type: [Promotion] })
+  @ApiQuery({ name: 'page', required: false, description: 'Numéro de page' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Nombre d\'éléments par page' })
+  @ApiQuery({ name: 'search', required: false, description: 'Terme de recherche' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Liste des promotions récupérée avec succès',
+    type: [Promotion] 
+  })
   async findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('search') search?: string
-  ) {
-    const result = await this.promotionsService.findAll(page, limit, search);
-    return {
-      message: 'Data retrieved successfully',
-      data: result
-    };
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    // Retourner directement la structure attendue par le frontend
+    return this.promotionsService.findAll(
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 10,
+      search,
+    );
   }
 
-  @Get(':uuid')
-  @ApiOperation({ summary: 'Récupérer une promotion par son UUID' })
-  @ApiResponse({ status: 200, description: 'Promotion récupérée avec succès.', type: Promotion })
-  @ApiResponse({ status: 404, description: 'Promotion non trouvée' })
-  findOne(@Param('uuid') uuid: string) {
-    return this.promotionsService.findOne(uuid);
+  @Get(':id')
+  @ApiOperation({ summary: 'Récupérer une promotion par son ID' })
+  @ApiParam({ name: 'id', description: 'UUID de la promotion' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Promotion récupérée avec succès',
+    type: Promotion 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Promotion non trouvée' 
+  })
+  async findOne(@Param('id') id: string): Promise<Promotion> {
+    return this.promotionsService.findOne(id);
   }
 
-  @Patch(':uuid')
+  @Patch(':id')
+  @Roles('admin', 'director', 'project-manager')
   @ApiOperation({ summary: 'Mettre à jour une promotion' })
-  @ApiResponse({ status: 200, description: 'La promotion a été mise à jour avec succès.', type: Promotion })
-  @ApiResponse({ status: 404, description: 'Promotion non trouvée' })
-  async update(@Param('uuid') uuid: string, @Body() updatePromotionDto: UpdatePromotionDto) {
-    const promotion = await this.promotionsService.update(uuid, updatePromotionDto);
-    if (!promotion) {
-      throw new NotFoundException(`Promotion with UUID "${uuid}" not found`);
-    }
-    return promotion;
+  @ApiParam({ name: 'id', description: 'UUID de la promotion' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Promotion mise à jour avec succès',
+    type: Promotion 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Données invalides' 
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Accès refusé - rôle insuffisant' 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Promotion non trouvée' 
+  })
+  async update(
+    @Param('id') id: string,
+    @Body() updatePromotionDto: UpdatePromotionDto,
+  ): Promise<Promotion> {
+    return this.promotionsService.update(id, updatePromotionDto);
   }
 
-  @Delete(':uuid')
+  @Delete(':id')
+  @Roles('admin', 'director', 'project-manager')
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Supprimer une promotion' })
-  @ApiResponse({ status: 200, description: 'La promotion a été supprimée avec succès.' })
-  @ApiResponse({ status: 404, description: 'Promotion non trouvée' })
-  remove(@Param('uuid') uuid: string) {
-    return this.promotionsService.remove(uuid);
+  @ApiParam({ name: 'id', description: 'UUID de la promotion' })
+  @ApiResponse({ 
+    status: 204, 
+    description: 'Promotion supprimée avec succès' 
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Accès refusé - rôle insuffisant' 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Promotion non trouvée' 
+  })
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.promotionsService.remove(id);
   }
 
   @Post(':uuid_promotion/followers/:uuid_member')
