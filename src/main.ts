@@ -128,7 +128,15 @@ async function bootstrap() {
 
   // Nous ne définissons plus de préfixe global pour l'API
   app.setGlobalPrefix('api');
-  
+
+  // Pont pour permettre à Discord d'appeler /auth/callback sans le préfixe /api
+  const server = app.getHttpAdapter().getInstance();
+  server.get('/auth/callback', (req, res) => {
+    // Redirige vers la vraie route NestJS avec le préfixe /api
+    const query = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+    res.redirect(`/api/auth/callback${query}`);
+  });
+
   // Configuration de la version de l'API
   await app.listen(3000, '0.0.0.0');
 }
