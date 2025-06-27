@@ -5,6 +5,9 @@ import { Guild } from '../guilds/entities/guild.entity';
 import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { Role } from '../roles/entities/role.entity';
+import { PinoLogger } from 'nestjs-pino';
+import { DiscordUser } from '../discord-users/entities/discord-user.entity';
+import { Client } from 'discord.js';
 
 describe('MembersService', () => {
   let service: MembersService;
@@ -40,6 +43,7 @@ describe('MembersService', () => {
     find: vi.fn(),
     findOne: vi.fn(),
     delete: vi.fn(),
+    findAndCount: vi.fn(),
     manager: {
       query: vi.fn()
     }
@@ -50,10 +54,43 @@ describe('MembersService', () => {
     save: vi.fn()
   };
 
+  const mockDiscordUserRepository = {
+    findOne: vi.fn(),
+    save: vi.fn()
+  };
+
+  const mockDiscordClient = {
+    guilds: {
+      fetch: vi.fn().mockResolvedValue({
+        members: {
+          fetch: vi.fn().mockResolvedValue({
+            setNickname: vi.fn().mockResolvedValue(undefined)
+          })
+        }
+      })
+    }
+  };
+
+  const mockLogger = {
+    setContext: vi.fn(),
+    log: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    verbose: vi.fn(),
+    info: vi.fn(),
+  };
+
   beforeEach(() => {
     membersRepository = mockMembersRepository as unknown as Repository<Member>;
     rolesRepository = mockRolesRepository as unknown as Repository<Role>;
-    service = new MembersService(membersRepository, rolesRepository);
+    service = new MembersService(
+      membersRepository, 
+      rolesRepository,
+      mockDiscordClient as unknown as Client,
+      mockDiscordUserRepository as unknown as Repository<DiscordUser>,
+      mockLogger as unknown as PinoLogger
+    );
     vi.clearAllMocks();
   });
 
@@ -84,13 +121,21 @@ describe('MembersService', () => {
   describe('findAll', () => {
     it('devrait retourner un tableau de membres', async () => {
       const members = [mockMember];
-      mockMembersRepository.find.mockResolvedValue(members);
+      const total = 1;
+      mockMembersRepository.findAndCount.mockResolvedValue([members, total]);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(members);
-      expect(mockMembersRepository.find).toHaveBeenCalledWith({
-        relations: ['resources']
+      expect(result).toEqual({ data: members, total, page: 1, limit: 7 });
+      expect(mockMembersRepository.findAndCount).toHaveBeenCalledWith({
+        where: {},
+        relations: [
+          'discordUser',
+          'guild',
+          'followedPromotions'
+        ],
+        skip: 0,
+        take: 7,
       });
     });
   });
