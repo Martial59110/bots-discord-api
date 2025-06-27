@@ -1,9 +1,37 @@
 import { ApiProperty, PickType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsUUID, IsString, IsOptional, MinLength, Matches } from 'class-validator';
+import { IsDate, IsUUID, IsString, IsOptional, MinLength, Matches, IsArray } from 'class-validator';
 import { PickableDtoFields } from 'src/utils/pickable-dto-fields';
 import { PickableDiscordUUIDFields } from 'src/utils/pickable-discord-uuid-fields';
 import { PickableInternUUIDFields } from 'src/utils/pickable-intern-uuid-fields';
+
+export class CreatePostDto {
+  @ApiProperty({ description: 'Nom du post' })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ description: 'Type du post' })
+  @IsString()
+  type: string;
+
+  @ApiProperty({ description: 'Contenu du post' })
+  @IsString()
+  content: string;
+}
+
+export class CreateChannelDto {
+  @ApiProperty({ description: 'Nom du channel' })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ description: 'Type du channel' })
+  @IsString()
+  type: string;
+
+  @ApiProperty({ description: 'Position du channel' })
+  @IsOptional()
+  channelPosition?: number;
+}
 
 export class CreatePromotionDto extends PickType(PickableDtoFields, [
   'name',
@@ -61,4 +89,24 @@ export class CreatePromotionDto extends PickType(PickableDtoFields, [
   @IsOptional()
   @IsUUID()
   uuidCourse?: string;
+
+  @ApiProperty({ 
+    description: 'Posts personnalisés à ajouter (RG53)', 
+    required: false,
+    type: [CreatePostDto]
+  })
+  @IsOptional()
+  @IsArray()
+  @Type(() => CreatePostDto)
+  customPosts?: CreatePostDto[];
+
+  @ApiProperty({ 
+    description: 'Channels personnalisés à ajouter', 
+    required: false,
+    type: [CreateChannelDto]
+  })
+  @IsOptional()
+  @IsArray()
+  @Type(() => CreateChannelDto)
+  customChannels?: CreateChannelDto[];
 } 
