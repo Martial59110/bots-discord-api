@@ -42,14 +42,14 @@ describe('CategoriesService', () => {
   });
 
   it('should return an array of categories', async () => {
-    const result = [{ uuid: '123456789012345678', uuidGuild: '987654321098765432', name: 'Test Category', position: 1 }];
+    const result = [{ uuid: '123456789012345678', name: 'Test Category' }];
     mockRepository.find.mockResolvedValue(result);
     expect(await service.findAll()).toEqual(result);
     expect(mockRepository.find).toHaveBeenCalledWith({
       relations: {
         guild: true,
         channels: true,
-        course: true,
+        formations: true,
         promotion: true,
         guildTemplate: true
       }
@@ -57,7 +57,7 @@ describe('CategoriesService', () => {
   });
 
   it('should return a single category', async () => {
-    const result = { uuid: '123456789012345678', uuidGuild: '987654321098765432', name: 'Test Category', position: 1 };
+    const result = { uuid: '123456789012345678', name: 'Test Category' };
     mockRepository.findOne.mockResolvedValue(result);
     expect(await service.findOne('123456789012345678')).toEqual(result);
     expect(mockRepository.findOne).toHaveBeenCalledWith({
@@ -65,7 +65,7 @@ describe('CategoriesService', () => {
       relations: {
         guild: true,
         channels: true,
-        course: true,
+        formations: true,
         promotion: true,
         guildTemplate: true
       }
