@@ -5,11 +5,13 @@ import { UpdateGuildDto } from './dto/update-guild.dto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Guild } from './entities/guild.entity';
 import { Logger } from '@nestjs/common';
+import { Public } from '../auth/decorators/public.decorator';
 
 const logger = new Logger('GuildsController');
 
 @ApiTags('guilds')
 @Controller('guilds')
+
 export class GuildsController {
   constructor(private readonly guildService: GuildsService) {}
 
