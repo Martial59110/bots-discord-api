@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PromotionsController } from './promotions.controller';
 import { PromotionsService } from './promotions.service';
+import { PromotionLifecycleService } from './promotion-lifecycle.service';
+import { JwtService } from '@nestjs/jwt';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 describe('PromotionsController', () => {
@@ -18,6 +20,19 @@ describe('PromotionsController', () => {
             findOne: vi.fn(),
             update: vi.fn(),
             remove: vi.fn(),
+          },
+        },
+        {
+          provide: PromotionLifecycleService,
+          useValue: {
+            createPromotionWithWorkflow: vi.fn(),
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            sign: vi.fn(),
+            verify: vi.fn(),
           },
         },
       ],
