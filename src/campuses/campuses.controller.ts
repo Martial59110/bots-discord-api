@@ -4,6 +4,7 @@ import { CreateCampusDto } from './dto/create-campus.dto';
 import { UpdateCampusDto } from './dto/update-campus.dto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Campus } from './entities/campus.entity';
+import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('campuses')
 @Controller('campuses')
