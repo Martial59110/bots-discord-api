@@ -11,6 +11,8 @@ import { Category } from '../categories/entities/category.entity';
 import { PinoLogger } from 'nestjs-pino';
 import { PromotionsBotService } from './promotions-bot.service';
 import { ChannelType } from 'discord.js';
+import { MembersService } from '../members/members.service';
+import { CreateMemberDto } from '../members/dto/create-member.dto';
 
 @Injectable()
 export class PromotionsService {
@@ -29,6 +31,7 @@ export class PromotionsService {
 
     private readonly formationsService: FormationsService,
     private readonly promotionsBotService: PromotionsBotService,
+    private readonly membersService: MembersService,
     private readonly logger: PinoLogger
   ) {
     this.logger.setContext('PromotionsService');
@@ -36,18 +39,21 @@ export class PromotionsService {
 
   async create(createPromotionDto: CreatePromotionDto): Promise<Promotion> {
     try {
-      this.logger.info({ createPromotionDto }, 'Création d\'une nouvelle promotion');
+      this.logger.info({ createPromotionDto }, 'Début création d\'une nouvelle promotion');
       
       const startDate = new Date(createPromotionDto.startDate);
       const endDate = new Date(createPromotionDto.endDate);
 
+      this.logger.info('Avant création du rôle Discord');
       // Création du rôle Discord
       const discordRole = await this.promotionsBotService.createPromotionRole(
         createPromotionDto.uuidGuild,
         createPromotionDto.name
       );
+      this.logger.info({ discordRole }, 'Après création du rôle Discord');
 
       // Sauvegarde du rôle en BDD
+      this.logger.info('Avant sauvegarde du rôle en BDD');
       const newRole = this.roleRepository.create({
         uuidRole: discordRole.id,
         uuidGuild: createPromotionDto.uuidGuild,
@@ -58,8 +64,10 @@ export class PromotionsService {
         color: discordRole.hexColor,
       });
       const savedRole = await this.roleRepository.save(newRole);
+      this.logger.info({ savedRole }, 'Après sauvegarde du rôle en BDD');
 
       // Création de la promotion
+      this.logger.info('Avant création de la promotion en BDD');
       const newPromotion = this.promotionRepository.create({
         ...createPromotionDto,
         startDate,
@@ -68,47 +76,59 @@ export class PromotionsService {
         uuidCampus: createPromotionDto.uuidCampus
       });
       const savedPromotion = await this.promotionRepository.save(newPromotion);
+      this.logger.info({ savedPromotion }, 'Après création de la promotion en BDD');
 
       // Création de la structure Discord
+      this.logger.info('Avant récupération de la formation');
       const formation = await this.formationsService.findOne(createPromotionDto.uuidFormation);
       if (!formation) throw new NotFoundException('Formation non trouvée');
+      this.logger.info({ formation }, 'Après récupération de la formation');
 
       // Création de la catégorie Discord
+      this.logger.info('Avant création de la catégorie Discord');
       const category = await this.promotionsBotService.createPromotionCategory(
         createPromotionDto.uuidGuild,
         createPromotionDto.name,
         discordRole.id
       );
+      this.logger.info({ category }, 'Après création de la catégorie Discord');
 
       // Sauvegarde de la catégorie en BDD
+      this.logger.info('Avant sauvegarde de la catégorie en BDD');
       await this.categoryRepository.save({
         uuid: category.id,
         name: category.name,
         uuidGuild: createPromotionDto.uuidGuild,
         position: category.position
       });
+      this.logger.info('Après sauvegarde de la catégorie en BDD');
 
-   
+      this.logger.info('Avant création des channels Discord');
       const sortedChannels = formation.channels.slice().sort((a, b) => (a.channelPosition ?? 0) - (b.channelPosition ?? 0));
       const { createdForums } = await this.promotionsBotService.createPromotionChannels(
         createPromotionDto.uuidGuild,
         category.id,
         sortedChannels
       );
+      this.logger.info({ createdForums }, 'Après création des channels Discord');
 
-    
       if (formation.threads && formation.threads.length > 0) {
+        this.logger.info('Avant création des threads Discord');
         await this.promotionsBotService.createPromotionThreads(
           createPromotionDto.uuidGuild,
           createdForums,
           formation.threads
         );
+        this.logger.info('Après création des threads Discord');
       }
 
       // Mise à jour de la promotion avec l'ID de la catégorie
+      this.logger.info('Avant mise à jour de la promotion avec uuidCategory');
       savedPromotion.uuidCategory = category.id;
       await this.promotionRepository.save(savedPromotion);
+      this.logger.info('Après mise à jour de la promotion avec uuidCategory');
 
+      this.logger.info('Fin de la méthode create, promotion créée avec succès');
       return savedPromotion;
     } catch (error) {
       this.logger.error({ error }, 'Erreur lors de la création de la promotion');
@@ -239,9 +259,35 @@ export class PromotionsService {
       throw new NotFoundException(`Promotion avec UUID ${uuidPromotion} non trouvée`);
     }
 
-    const member = await this.memberRepository.findOneBy({ uuidMember });
+    let member = await this.memberRepository.findOneBy({ uuidMember });
+    
+    // Si le membre n'existe pas, on essaie de le créer automatiquement
     if (!member) {
-      throw new NotFoundException(`Membre avec UUID ${uuidMember} non trouvé`);
+      this.logger.info({ uuidMember }, 'Membre non trouvé, tentative de création automatique');
+      
+      try {
+        // Récupérer les informations du membre depuis Discord
+        const discordClient = this.promotionsBotService.getClient();
+        const guild = await discordClient.guilds.fetch(promotion.uuidGuild);
+        const guildMember = await guild.members.fetch(uuidMember);
+        
+        // Créer le membre avec les informations Discord
+        const createMemberDto: CreateMemberDto = {
+          uuidDiscord: uuidMember,
+          uuidGuild: promotion.uuidGuild,
+          guildUsername: guildMember.displayName || guildMember.user.username,
+          xp: '0.00',
+          level: 0,
+          communityRole: 'Member',
+          status: 'Active'
+        };
+        
+        member = await this.membersService.create(createMemberDto);
+        this.logger.info({ member }, 'Membre créé automatiquement avec succès');
+      } catch (error) {
+        this.logger.error({ error }, 'Erreur lors de la création automatique du membre');
+        throw new NotFoundException(`Membre avec UUID ${uuidMember} non trouvé et impossible à créer automatiquement`);
+      }
     }
 
     const existingRelation = await this.promotionRepository
