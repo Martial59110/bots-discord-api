@@ -2,13 +2,35 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { JwtService } from '@nestjs/jwt';
+import { Reflector } from '@nestjs/core';
 
 describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
 
+  const mockJwtService = {
+    verify: vi.fn(),
+    sign: vi.fn(),
+    verifyAsync: vi.fn(),
+  };
+
+  const mockReflector = {
+    getAllAndOverride: vi.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [JwtAuthGuard],
+      providers: [
+        JwtAuthGuard,
+        {
+          provide: JwtService,
+          useValue: mockJwtService,
+        },
+        {
+          provide: Reflector,
+          useValue: mockReflector,
+        },
+      ],
     }).compile();
 
     guard = module.get<JwtAuthGuard>(JwtAuthGuard);
@@ -19,54 +41,57 @@ describe('JwtAuthGuard', () => {
   });
 
   describe('canActivate', () => {
-    it('should call super.canActivate', () => {
-      // Arrange
-      const context = {} as ExecutionContext;
-      const superCanActivate = vi.spyOn(JwtAuthGuard.prototype, 'canActivate');
-      superCanActivate.mockImplementation(() => true as any);
+    it('should return true for public routes', async () => {
+      const context = {
+        getHandler: vi.fn(),
+        getClass: vi.fn(),
+        switchToHttp: vi.fn().mockReturnValue({
+          getRequest: vi.fn().mockReturnValue({})
+        })
+      } as unknown as ExecutionContext;
 
-      // Act
-      const result = guard.canActivate(context);
+      mockReflector.getAllAndOverride.mockReturnValue(true);
 
-      // Assert
-      expect(superCanActivate).toHaveBeenCalledWith(context);
+      const result = await guard.canActivate(context);
+
       expect(result).toBe(true);
     });
-  });
 
-  describe('handleRequest', () => {
-    it('should return user when no error and user exists', () => {
-      // Arrange
-      const err = null;
-      const user = { id: 'user_id', username: 'test_user' };
-      const info = null;
+    it('should throw UnauthorizedException when no token is provided', async () => {
+      const context = {
+        getHandler: vi.fn(),
+        getClass: vi.fn(),
+        switchToHttp: vi.fn().mockReturnValue({
+          getRequest: vi.fn().mockReturnValue({
+            headers: {}
+          })
+        })
+      } as unknown as ExecutionContext;
 
-      // Act
-      const result = guard.handleRequest(err, user, info);
+      mockReflector.getAllAndOverride.mockReturnValue(false);
 
-      // Assert
-      expect(result).toEqual(user);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(context)).rejects.toThrow('Token manquant');
     });
 
-    it('should throw UnauthorizedException when error exists', () => {
-      // Arrange
-      const err = new Error('Test error');
-      const user = { id: 'user_id', username: 'test_user' };
-      const info = null;
+    it('should throw UnauthorizedException when token is invalid', async () => {
+      const context = {
+        getHandler: vi.fn(),
+        getClass: vi.fn(),
+        switchToHttp: vi.fn().mockReturnValue({
+          getRequest: vi.fn().mockReturnValue({
+            headers: {
+              authorization: 'Bearer invalid-token'
+            }
+          })
+        })
+      } as unknown as ExecutionContext;
 
-      // Act & Assert
-      expect(() => guard.handleRequest(err, user, info)).toThrow(err);
-    });
+      mockReflector.getAllAndOverride.mockReturnValue(false);
+      mockJwtService.verifyAsync.mockRejectedValue(new Error('Invalid token'));
 
-    it('should throw UnauthorizedException when user does not exist', () => {
-      // Arrange
-      const err = null;
-      const user = null;
-      const info = null;
-
-      // Act & Assert
-      expect(() => guard.handleRequest(err, user, info)).toThrow(UnauthorizedException);
-      expect(() => guard.handleRequest(err, user, info)).toThrow('Authentication required');
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(context)).rejects.toThrow('Token invalide');
     });
   });
 }); 
