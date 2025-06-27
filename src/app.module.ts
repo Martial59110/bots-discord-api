@@ -1,6 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { typeOrmConfig } from './config/typeorm.config';
+import { typeOrmModuleOptions } from './config/typeorm.config';
 import { LoggerModule, PinoLogger } from 'nestjs-pino';
 import { loggerConfig } from './config/logger.config';
 import { GuildsModule } from './guilds/guilds.module';
@@ -47,7 +47,7 @@ import { DiscordModule } from './discord/discord.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forRoot(typeOrmConfig),
+    TypeOrmModule.forRoot(typeOrmModuleOptions),
     LoggerModule.forRoot(loggerConfig),
     ConfigModule.forRoot({
       isGlobal: true,
