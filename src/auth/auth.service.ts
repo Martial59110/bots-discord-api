@@ -219,4 +219,26 @@ export class AuthService {
   hasRole(userRoles: string[], requiredRole: string): boolean {
     return userRoles.includes(requiredRole);
   }
+
+  /**
+   * Récupère la liste des rôles d'un serveur Discord
+   */
+  async getGuildRoles(guildId: string): Promise<{ id: string, name: string }[]> {
+    if (!this.botToken) {
+      throw new Error('DISCORD_BOT_TOKEN n\'est pas défini dans les variables d\'environnement');
+    }
+    try {
+      const rolesResponse = await firstValueFrom(
+        this.httpService.get(`${this.discordApiUrl}/guilds/${guildId}/roles`, {
+          headers: {
+            Authorization: `Bot ${this.botToken}`,
+          },
+        }),
+      );
+      return rolesResponse.data; // Tableau d'objets { id, name, ... }
+    } catch (error) {
+      this.logger.error(`Erreur lors de la récupération des rôles du serveur: ${error.message}`);
+      throw new UnauthorizedException('Impossible de récupérer les rôles du serveur Discord');
+    }
+  }
 } 
