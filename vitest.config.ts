@@ -10,9 +10,29 @@ export default defineConfig({
     setupFiles: ['./test/setup.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      include: ['src/{promotions,channels,signature}/**/*.ts'],
-      exclude: ['**/*.spec.ts', '**/index.ts'],
+      reporter: ['text', 'json', 'html', 'lcov'],
+      include: ['src/**/*.ts'],
+      exclude: [
+        '**/*.spec.ts',
+        '**/*.test.ts',
+        '**/index.ts',
+        'src/main.ts',
+        'src/config/typeorm.config.ts',
+        'test/**',
+        '**/*.d.ts',
+        '**/migrations/**'
+      ],
+      thresholds: {
+        global: {
+          branches: 70,
+          functions: 70,
+          lines: 70,
+          statements: 70
+        }
+      },
+      all: true,
+      clean: true,
+      cleanOnRerun: true
     },
   },
   plugins: [
