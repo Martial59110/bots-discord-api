@@ -38,6 +38,16 @@ const mockDiscordBotService = {
   } as unknown as Client<boolean>)
 } as unknown as DiscordBotService;
 
+const mockCampusBotService = {
+  createCampusRole: vi.fn().mockResolvedValue({
+    id: '234567890123456789',
+    position: 0,
+    hexColor: '#000000'
+  }),
+  updateCampusRole: vi.fn().mockResolvedValue(undefined),
+  deleteCampusRole: vi.fn().mockResolvedValue(undefined)
+};
+
 describe('CampusesService', () => {
   let service: CampusesService;
 
@@ -45,7 +55,7 @@ describe('CampusesService', () => {
     service = new CampusesService(
       mockRepository as unknown as Repository<Campus>,
       mockRoleRepository as unknown as Repository<Role>,
-      mockDiscordBotService
+      mockCampusBotService as any
     );
   });
 
@@ -125,20 +135,6 @@ describe('CampusesService', () => {
     mockRepository.findOneBy.mockResolvedValue(existingCampus);
     mockRepository.save.mockResolvedValue(updatedCampus);
 
-    const mockDiscordClient = {
-      user: {},
-      guilds: {
-        fetch: vi.fn().mockResolvedValue({
-          roles: {
-            fetch: vi.fn().mockResolvedValue({
-              setName: vi.fn().mockResolvedValue(undefined)
-            })
-          }
-        })
-      }
-    };
-    mockDiscordBotService.getClient = () => mockDiscordClient as unknown as Client<boolean>;
-
     // Exécuter la mise à jour
     const result = await service.update('123e4567-e89b-12d3-a456-426614174000', dto);
 
@@ -150,14 +146,11 @@ describe('CampusesService', () => {
       uuidCampus: '123e4567-e89b-12d3-a456-426614174000' 
     });
 
-    // Vérifier que le rôle Discord a été mis à jour
-    expect(mockDiscordClient.guilds.fetch).toHaveBeenCalledWith(existingCampus.uuidGuild);
-    const mockGuild = await mockDiscordClient.guilds.fetch();
-    expect(mockGuild.roles.fetch).toHaveBeenCalledWith(existingCampus.uuidRole);
-    const mockRole = await mockGuild.roles.fetch();
-    expect(mockRole.setName).toHaveBeenCalledWith(
-      'Campus Updated Campus',
-      'Mise à jour du nom du campus'
+    // Vérifier que le rôle Discord a été mis à jour via CampusBotService
+    expect(mockCampusBotService.updateCampusRole).toHaveBeenCalledWith(
+      existingCampus.uuidGuild,
+      existingCampus.uuidRole,
+      'Updated Campus'
     );
 
     // Vérifier que le campus a été mis à jour dans la base de données
@@ -177,21 +170,6 @@ describe('CampusesService', () => {
     mockRepository.findOneBy.mockResolvedValue(existingCampus);
     mockRepository.delete.mockResolvedValue({ affected: 1 });
 
-    // Simuler le client Discord et ses méthodes
-    const mockDiscordClient = {
-      user: {},
-      guilds: {
-        fetch: vi.fn().mockResolvedValue({
-          roles: {
-            fetch: vi.fn().mockResolvedValue({
-              delete: vi.fn().mockResolvedValue(undefined)
-            })
-          }
-        })
-      }
-    };
-    mockDiscordBotService.getClient = () => mockDiscordClient as unknown as Client<boolean>;
-
     // Exécuter la suppression
     const result = await service.remove('123e4567-e89b-12d3-a456-426614174000');
 
@@ -203,12 +181,11 @@ describe('CampusesService', () => {
       uuidCampus: '123e4567-e89b-12d3-a456-426614174000' 
     });
 
-    // Vérifier que le rôle Discord a été supprimé
-    expect(mockDiscordClient.guilds.fetch).toHaveBeenCalledWith(existingCampus.uuidGuild);
-    const mockGuild = await mockDiscordClient.guilds.fetch();
-    expect(mockGuild.roles.fetch).toHaveBeenCalledWith(existingCampus.uuidRole);
-    const mockRole = await mockGuild.roles.fetch();
-    expect(mockRole.delete).toHaveBeenCalledWith('Suppression du campus');
+    // Vérifier que le rôle Discord a été supprimé via CampusBotService
+    expect(mockCampusBotService.deleteCampusRole).toHaveBeenCalledWith(
+      existingCampus.uuidGuild,
+      existingCampus.uuidRole
+    );
 
     // Vérifier que le campus a été supprimé de la base de données
     expect(mockRepository.delete).toHaveBeenCalledWith({ 
