@@ -36,7 +36,7 @@ describe('CampusesController', () => {
   it('should return an array of campuses', async () => {
     const result = [{ uuid: '123e4567-e89b-12d3-a456-426614174000', name: 'Test Campus' }];
     mockCampusService.findAll.mockResolvedValue(result);
-    expect(await controller.findAll()).toEqual(result);
+    expect(await controller.findAll()).toEqual({ data: result });
     expect(mockCampusService.findAll).toHaveBeenCalled();
   });
 
