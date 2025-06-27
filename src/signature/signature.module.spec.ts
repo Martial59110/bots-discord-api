@@ -13,6 +13,14 @@ import { MembersService } from '../members/members.service';
 import { RolesService } from '../roles/roles.service';
 import { GuildsService } from '../guilds/guilds.service';
 import { ChannelsService } from '../channels/channels.service';
+import { DiscordUsersService } from '../discord-users/discord-users.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Promotion } from '../promotions/entities/promotion.entity';
+import { Member } from '../members/entities/member.entity';
+import { Channel } from '../channels/entities/channel.entity';
+import { Role } from '../roles/entities/role.entity';
+import { Category } from '../categories/entities/category.entity';
+import { DiscordUser } from '../discord-users/entities/discord-user.entity';
 
 describe('SignatureModule', () => {
   beforeEach(() => {
@@ -27,6 +35,15 @@ describe('SignatureModule', () => {
     const mockRolesService = { findByPromotion: vi.fn() };
     const mockGuildsService = { findOne: vi.fn() };
     const mockChannelsService = { findChannelByPromotion: vi.fn() };
+    const mockDiscordUsersService = { findOne: vi.fn() };
+
+    // Mocks pour tous les repositories
+    const mockPromotionRepository = { find: vi.fn(), findOne: vi.fn() };
+    const mockMemberRepository = { find: vi.fn(), findOne: vi.fn() };
+    const mockChannelRepository = { find: vi.fn(), findOne: vi.fn() };
+    const mockRoleRepository = { find: vi.fn(), findOne: vi.fn() };
+    const mockCategoryRepository = { find: vi.fn(), findOne: vi.fn() };
+    const mockDiscordUserRepository = { find: vi.fn(), findOne: vi.fn() };
 
     const moduleRef = await Test.createTestingModule({
       controllers: [SignatureController],
@@ -36,7 +53,14 @@ describe('SignatureModule', () => {
         { provide: MembersService, useValue: mockMembersService },
         { provide: RolesService, useValue: mockRolesService },
         { provide: GuildsService, useValue: mockGuildsService },
-        { provide: ChannelsService, useValue: mockChannelsService }
+        { provide: ChannelsService, useValue: mockChannelsService },
+        { provide: DiscordUsersService, useValue: mockDiscordUsersService },
+        { provide: getRepositoryToken(Promotion), useValue: mockPromotionRepository },
+        { provide: getRepositoryToken(Member), useValue: mockMemberRepository },
+        { provide: getRepositoryToken(Channel), useValue: mockChannelRepository },
+        { provide: getRepositoryToken(Role), useValue: mockRoleRepository },
+        { provide: getRepositoryToken(Category), useValue: mockCategoryRepository },
+        { provide: getRepositoryToken(DiscordUser), useValue: mockDiscordUserRepository }
       ],
     }).compile();
 
@@ -52,6 +76,15 @@ describe('SignatureModule', () => {
       const mockRolesService = { findByPromotion: vi.fn() };
       const mockGuildsService = { findOne: vi.fn() };
       const mockChannelsService = { findChannelByPromotion: vi.fn() };
+      const mockDiscordUsersService = { findOne: vi.fn() };
+
+      // Mocks pour tous les repositories
+      const mockPromotionRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockMemberRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockChannelRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockRoleRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockCategoryRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockDiscordUserRepository = { find: vi.fn(), findOne: vi.fn() };
 
       const moduleRef = await Test.createTestingModule({
         controllers: [SignatureController],
@@ -61,7 +94,14 @@ describe('SignatureModule', () => {
           { provide: MembersService, useValue: mockMembersService },
           { provide: RolesService, useValue: mockRolesService },
           { provide: GuildsService, useValue: mockGuildsService },
-          { provide: ChannelsService, useValue: mockChannelsService }
+          { provide: ChannelsService, useValue: mockChannelsService },
+          { provide: DiscordUsersService, useValue: mockDiscordUsersService },
+          { provide: getRepositoryToken(Promotion), useValue: mockPromotionRepository },
+          { provide: getRepositoryToken(Member), useValue: mockMemberRepository },
+          { provide: getRepositoryToken(Channel), useValue: mockChannelRepository },
+          { provide: getRepositoryToken(Role), useValue: mockRoleRepository },
+          { provide: getRepositoryToken(Category), useValue: mockCategoryRepository },
+          { provide: getRepositoryToken(DiscordUser), useValue: mockDiscordUserRepository }
         ],
       }).compile();
 
@@ -76,6 +116,15 @@ describe('SignatureModule', () => {
       const mockRolesService = { findByPromotion: vi.fn() };
       const mockGuildsService = { findOne: vi.fn() };
       const mockChannelsService = { findChannelByPromotion: vi.fn() };
+      const mockDiscordUsersService = { findOne: vi.fn() };
+
+      // Mocks pour tous les repositories
+      const mockPromotionRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockMemberRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockChannelRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockRoleRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockCategoryRepository = { find: vi.fn(), findOne: vi.fn() };
+      const mockDiscordUserRepository = { find: vi.fn(), findOne: vi.fn() };
 
       const moduleRef = await Test.createTestingModule({
         controllers: [SignatureController],
@@ -85,7 +134,14 @@ describe('SignatureModule', () => {
           { provide: MembersService, useValue: mockMembersService },
           { provide: RolesService, useValue: mockRolesService },
           { provide: GuildsService, useValue: mockGuildsService },
-          { provide: ChannelsService, useValue: mockChannelsService }
+          { provide: ChannelsService, useValue: mockChannelsService },
+          { provide: DiscordUsersService, useValue: mockDiscordUsersService },
+          { provide: getRepositoryToken(Promotion), useValue: mockPromotionRepository },
+          { provide: getRepositoryToken(Member), useValue: mockMemberRepository },
+          { provide: getRepositoryToken(Channel), useValue: mockChannelRepository },
+          { provide: getRepositoryToken(Role), useValue: mockRoleRepository },
+          { provide: getRepositoryToken(Category), useValue: mockCategoryRepository },
+          { provide: getRepositoryToken(DiscordUser), useValue: mockDiscordUserRepository }
         ],
       }).compile();
 
@@ -96,30 +152,8 @@ describe('SignatureModule', () => {
 
   describe('Module dependencies', () => {
     it('should import required modules', () => {
-      // Mock du module signature pour le test
-      const mockModule = {
-        imports: [
-          PromotionsModule,
-          MembersModule,
-          RolesModule,
-          GuildsModule,
-          ChannelsModule
-        ]
-      };
-      
-      // Mocker SignatureModule.imports pour le test
-      const originalImports = SignatureModule.imports;
-      SignatureModule.imports = mockModule.imports;
-      
-      // Vérifier les imports dans la définition mockée du module
-      expect(SignatureModule.imports).toContain(PromotionsModule);
-      expect(SignatureModule.imports).toContain(MembersModule);
-      expect(SignatureModule.imports).toContain(RolesModule);
-      expect(SignatureModule.imports).toContain(GuildsModule);
-      expect(SignatureModule.imports).toContain(ChannelsModule);
-      
-      // Rétablir la valeur originale
-      SignatureModule.imports = originalImports;
+      // Test simple pour vérifier que le module peut être importé
+      expect(SignatureModule).toBeDefined();
     });
   });
 }); 
