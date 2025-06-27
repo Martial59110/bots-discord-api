@@ -25,7 +25,7 @@ export class DiscordUser {
     description: 'Discriminateur Discord',
     example: '1234'
   })
-  @Column({ type: 'varchar', length: 50, name: 'discriminator' })
+  @Column({ type: 'varchar', length: 4, name: 'discriminator' })
   discriminator: string;
 
   @ApiProperty({
