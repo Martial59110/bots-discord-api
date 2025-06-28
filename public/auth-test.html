@@ -103,7 +103,7 @@
     </div>
 
     <script>
-        // Fonction pour récupérer et afficher les paramètres de l'URL
+        
         function parseUrlParams() {
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
@@ -119,7 +119,7 @@
             }
         }
 
-        // Fonction pour récupérer les informations utilisateur
+        
         async function getUserInfo() {
             const code = document.getElementById('codeInput').value.trim();
             if (!code) {
@@ -151,7 +151,7 @@
             }
         }
 
-        // Fonction pour décoder le token JWT
+        
         function decodeToken() {
             const token = localStorage.getItem('discord_jwt_token');
             if (!token) {
@@ -160,7 +160,7 @@
             }
 
             try {
-                // Décoder le token (partie payload)
+                
                 const base64Url = token.split('.')[1];
                 const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
                 const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
@@ -175,11 +175,11 @@
             }
         }
 
-        // Exécuter au chargement de la page
+        
         window.onload = function() {
             parseUrlParams();
             
-            // Vérifier si un token est déjà stocké
+            
             const storedToken = localStorage.getItem('discord_jwt_token');
             if (storedToken) {
                 document.getElementById('tokenInfo').innerHTML = `<strong>Token JWT stocké:</strong><br><pre>${storedToken}</pre>`;
