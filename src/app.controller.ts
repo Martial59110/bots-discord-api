@@ -10,7 +10,7 @@ export class AppController {
 
   @Get('test-auth')
   serveAuthTestPage(@Res() res: FastifyReply): void {
-    // Essayer plusieurs chemins possibles
+    
     const paths = [
       join(__dirname, '..', 'public', 'auth-test.html'),
       join(__dirname, '..', '..', 'public', 'auth-test.html'),
@@ -38,7 +38,7 @@ export class AppController {
 
   @Get('auth-callback-page')
   serveAuthCallbackPage(@Res() res: FastifyReply): void {
-    // Essayer plusieurs chemins possibles
+    
     const paths = [
       join(__dirname, '..', 'public', 'auth-callback.html'),
       join(__dirname, '..', '..', 'public', 'auth-callback.html'),
