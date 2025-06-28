@@ -123,8 +123,19 @@ export class AuthController {
       this.logger.log('Génération du JWT...');
       const jwt = this.authService.generateJwtToken(user, roles);
       
-      // Rediriger vers la page de callback du frontend avec le token
-      const redirectUrl = `${frontendUrl}/auth-callback-page?token=${jwt}`;
+      // Définir le JWT dans un cookie httpOnly
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.cookie('auth_token', jwt, {
+        httpOnly: true,
+        secure: isProduction, // HTTPS seulement en production
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60 * 1000, // 24 heures
+        domain: isProduction ? undefined : 'localhost' // Pour le développement local
+      });
+      
+      // Rediriger vers la page de callback du frontend (sans token en paramètre)
+      const redirectUrl = `${frontendUrl}/auth-callback-page?success=true`;
       this.logger.log(`Redirection vers: ${redirectUrl}`);
       res.status(302).header('Location', redirectUrl).send();
     } catch (error) {
@@ -133,6 +144,29 @@ export class AuthController {
       this.logger.log(`Redirection vers page d'erreur: ${redirectUrl}`);
       res.status(302).header('Location', redirectUrl).send();
     }
+  }
+
+  @ApiOperation({ 
+    summary: 'Déconnexion',
+    description: 'Supprime le cookie d\'authentification'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Déconnexion réussie'
+  })
+  @Get('logout')
+  @Public()
+  logout(@Res() res: FastifyReply): void {
+    // Supprimer le cookie d'authentification
+    res.clearCookie('auth_token', {
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
+    });
+    
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
+    const redirectUrl = `${frontendUrl}/login`;
+    
+    res.status(302).header('Location', redirectUrl).send();
   }
 
   @ApiOperation({ 
@@ -161,27 +195,27 @@ export class AuthController {
         // Mode avec code OAuth2 (ancien flux)
         this.logger.log('Mode OAuth2 avec code');
         
-        // Échanger le code contre un token d'accès
-        const accessToken = await this.authService.exchangeCodeForToken(code);
-        
-        // Récupérer les informations de l'utilisateur
+      // Échanger le code contre un token d'accès
+      const accessToken = await this.authService.exchangeCodeForToken(code);
+      
+      // Récupérer les informations de l'utilisateur
         user = await this.authService.getUserInfo(accessToken);
-        
-        // Récupérer les serveurs de l'utilisateur
+      
+      // Récupérer les serveurs de l'utilisateur
         guilds = await this.authService.getUserGuilds(accessToken);
-        
-        // Vérifier l'appartenance au serveur autorisé
-        const allowedGuildId = this.configService.get<string>('ALLOWED_GUILD_ID') || '';
+      
+      // Vérifier l'appartenance au serveur autorisé
+      const allowedGuildId = this.configService.get<string>('ALLOWED_GUILD_ID') || '';
         isInAllowedGuild = guilds.some(guild => guild.id === allowedGuildId);
-        
-        if (isInAllowedGuild) {
-          try {
-            // Récupérer les informations du membre dans le serveur autorisé
+      
+      if (isInAllowedGuild) {
+        try {
+          // Récupérer les informations du membre dans le serveur autorisé
             guildMember = await this.authService.getGuildMember(user.id, accessToken);
-            roles = guildMember.roles;
-          } catch (error) {
-            this.logger.error(`Erreur lors de la récupération des informations du membre: ${error.message}`);
-          }
+          roles = guildMember.roles;
+        } catch (error) {
+          this.logger.error(`Erreur lors de la récupération des informations du membre: ${error.message}`);
+        }
         }
       } else {
         // Mode avec JWT (nouveau flux)
