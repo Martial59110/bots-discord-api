@@ -7,6 +7,7 @@ import { Member } from '../members/entities/member.entity';
 import { Category } from '../categories/entities/category.entity';
 import { FormationsService } from '../formations/formations.service';
 import { PromotionsBotService } from './promotions-bot.service';
+import { MembersService } from '../members/members.service';
 import { PinoLogger } from 'nestjs-pino';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Repository } from 'typeorm';
@@ -67,6 +68,11 @@ describe('PromotionsService', () => {
     findOne: vi.fn(),
   };
 
+  const mockMembersService = {
+    findOne: vi.fn(),
+    findOneBy: vi.fn(),
+  };
+
   const mockDiscordRole = {
     id: '234567890123456789',
     position: 0,
@@ -116,6 +122,10 @@ describe('PromotionsService', () => {
         {
           provide: PromotionsBotService,
           useValue: mockPromotionsBotService,
+        },
+        {
+          provide: MembersService,
+          useValue: mockMembersService,
         },
         {
           provide: PinoLogger,
