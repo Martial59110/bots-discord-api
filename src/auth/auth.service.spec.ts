@@ -52,7 +52,7 @@ describe('AuthService', () => {
     httpService = module.get<HttpService>(HttpService);
     configService = module.get<ConfigService>(ConfigService);
     
-    // Reset all mocks before each test
+    
     vi.clearAllMocks();
   });
 
@@ -62,7 +62,7 @@ describe('AuthService', () => {
 
   describe('exchangeCodeForToken', () => {
     it('should exchange code for token successfully', async () => {
-      // Arrange
+      
       const code = 'auth_code';
       const mockResponse = {
         data: {
@@ -73,10 +73,10 @@ describe('AuthService', () => {
       };
       mockHttpService.post.mockReturnValue(of(mockResponse));
 
-      // Act
+      
       const result = await service.exchangeCodeForToken(code);
 
-      // Assert
+      
       expect(result).toEqual('access_token');
       expect(mockHttpService.post).toHaveBeenCalledWith(
         'https://discord.com/api/v10/oauth2/token',
@@ -90,18 +90,18 @@ describe('AuthService', () => {
     });
 
     it('should throw BadRequestException when exchange fails', async () => {
-      // Arrange
+      
       const code = 'invalid_code';
       mockHttpService.post.mockReturnValue(throwError(() => new Error('Failed')));
 
-      // Act & Assert
+      
       await expect(service.exchangeCodeForToken(code)).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('getUserInfo', () => {
     it('should get user info successfully', async () => {
-      // Arrange
+      
       const accessToken = 'access_token';
       const mockUser: DiscordUser = {
         id: 'user_id',
@@ -111,10 +111,10 @@ describe('AuthService', () => {
       };
       mockHttpService.get.mockReturnValue(of({ data: mockUser }));
 
-      // Act
+      
       const result = await service.getUserInfo(accessToken);
 
-      // Assert
+      
       expect(result).toEqual(mockUser);
       expect(mockHttpService.get).toHaveBeenCalledWith(
         'https://discord.com/api/v10/users/@me',
@@ -127,18 +127,18 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException when getting user info fails', async () => {
-      // Arrange
+      
       const accessToken = 'invalid_token';
       mockHttpService.get.mockReturnValue(throwError(() => new Error('Failed')));
 
-      // Act & Assert
+      
       await expect(service.getUserInfo(accessToken)).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('getUserGuilds', () => {
     it('should get user guilds successfully', async () => {
-      // Arrange
+      
       const accessToken = 'access_token';
       const mockGuilds: DiscordGuild[] = [
         {
@@ -152,10 +152,10 @@ describe('AuthService', () => {
       ];
       mockHttpService.get.mockReturnValue(of({ data: mockGuilds }));
 
-      // Act
+      
       const result = await service.getUserGuilds(accessToken);
 
-      // Assert
+      
       expect(result).toEqual(mockGuilds);
       expect(mockHttpService.get).toHaveBeenCalledWith(
         'https://discord.com/api/v10/users/@me/guilds',
@@ -168,18 +168,18 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException when getting user guilds fails', async () => {
-      // Arrange
+      
       const accessToken = 'invalid_token';
       mockHttpService.get.mockReturnValue(throwError(() => new Error('Failed')));
 
-      // Act & Assert
+      
       await expect(service.getUserGuilds(accessToken)).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('getGuildMember', () => {
     it('should get guild member successfully', async () => {
-      // Arrange
+      
       const userId = 'user_id';
       const guildId = 'guild_id';
       const accessToken = 'access_token';
@@ -205,10 +205,10 @@ describe('AuthService', () => {
         return of({ data: mockMember });
       });
 
-      // Act
+      
       const result = await service.getGuildMember(userId, accessToken);
 
-      // Assert
+      
       expect(result).toEqual(mockMember);
       expect(mockHttpService.get).toHaveBeenCalledWith(
         `https://discord.com/api/v10/guilds/${guildId}/members/${userId}`,
@@ -221,27 +221,27 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException when user is not a member of the guild', async () => {
-      // Arrange
+      
       const userId = 'user_id';
       const guildId = 'guild_id';
       const accessToken = 'access_token';
       const error = { response: { status: 404 } };
       mockHttpService.get.mockReturnValue(throwError(() => error));
 
-      // Act & Assert
+      
       await expect(service.getGuildMember(userId, accessToken)).rejects.toThrow(
         new UnauthorizedException("L'utilisateur n'est pas membre du serveur spécifié"),
       );
     });
 
     it('should throw UnauthorizedException when getting guild member fails', async () => {
-      // Arrange
+      
       const userId = 'user_id';
       const guildId = 'guild_id';
       const accessToken = 'access_token';
       mockHttpService.get.mockReturnValue(throwError(() => new Error('Failed')));
 
-      // Act & Assert
+      
       await expect(service.getGuildMember(userId, accessToken)).rejects.toThrow(
         new UnauthorizedException('Impossible de récupérer les informations du membre'),
       );
@@ -250,7 +250,7 @@ describe('AuthService', () => {
 
   describe('validateUserGuild', () => {
     it('should validate user guild successfully when user is in guild', async () => {
-      // Arrange
+      
       const accessToken = 'access_token';
       const userId = 'user_id';
       const mockGuilds: DiscordGuild[] = [
@@ -280,10 +280,10 @@ describe('AuthService', () => {
       vi.spyOn(service, 'getUserGuilds').mockResolvedValue(mockGuilds);
       vi.spyOn(service, 'getGuildMember').mockResolvedValue(mockGuildMember);
 
-      // Act
+      
       const result = await service.validateUserGuild(accessToken, userId);
 
-      // Assert
+      
       expect(result).toEqual({ 
         isValid: true, 
         roles: ['role_id_1', 'role_id_2'],
@@ -294,7 +294,7 @@ describe('AuthService', () => {
     });
 
     it('should return isValid false when user is not in allowed guild', async () => {
-      // Arrange
+      
       const accessToken = 'access_token';
       const userId = 'user_id';
       const mockGuilds: DiscordGuild[] = [
@@ -311,10 +311,10 @@ describe('AuthService', () => {
       vi.spyOn(service, 'getUserGuilds').mockResolvedValue(mockGuilds);
       vi.spyOn(service, 'getGuildMember');
 
-      // Act
+      
       const result = await service.validateUserGuild(accessToken, userId);
 
-      // Assert
+      
       expect(result).toEqual({ 
         isValid: false, 
         roles: [],
@@ -325,20 +325,20 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException when validation fails', async () => {
-      // Arrange
+      
       const accessToken = 'access_token';
       const userId = 'user_id';
       
       vi.spyOn(service, 'getUserGuilds').mockRejectedValue(new UnauthorizedException('Failed'));
 
-      // Act & Assert
+      
       await expect(service.validateUserGuild(accessToken, userId)).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('generateJwtToken', () => {
     it('should generate JWT token with user info and roles', () => {
-      // Arrange
+      
       const user: DiscordUser = {
         id: 'user_id',
         username: 'test_user',
@@ -347,10 +347,10 @@ describe('AuthService', () => {
       };
       const roles = ['role_1', 'role_2'];
 
-      // Act
+      
       const result = service.generateJwtToken(user, roles);
 
-      // Assert
+      
       expect(result).toEqual('jwt_token');
       expect(mockJwtService.sign).toHaveBeenCalledWith({
         sub: user.id,
