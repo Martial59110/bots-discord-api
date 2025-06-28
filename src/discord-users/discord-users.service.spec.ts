@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DiscordUsersService } from './discord-users.service';
 import { Repository } from 'typeorm';
 import { DiscordUser } from './entities/discord-user.entity';
+import { Member } from '../members/entities/member.entity';
 import { CreateDiscordUserDto } from './dto/create-discord-user.dto';
 import { UpdateDiscordUserDto } from './dto/update-discord-user.dto';
 
@@ -11,13 +12,32 @@ const mockRepository = {
   find: vi.fn(),
   findOneBy: vi.fn(),
   delete: vi.fn(),
+  update: vi.fn(),
+};
+
+const mockMemberRepository = {
+  update: vi.fn(),
+  findOneBy: vi.fn(),
+};
+
+const mockDiscordClient = {
+  users: {
+    fetch: vi.fn(),
+  },
+  guilds: {
+    fetch: vi.fn(),
+  },
 };
 
 describe('DiscordUsersService', () => {
   let service: DiscordUsersService;
 
   beforeEach(() => {
-    service = new DiscordUsersService(mockRepository as unknown as Repository<DiscordUser>);
+    service = new DiscordUsersService(
+      mockRepository as unknown as Repository<DiscordUser>,
+      mockMemberRepository as unknown as Repository<Member>,
+      mockDiscordClient as any
+    );
   });
 
   it('should be defined', () => {
@@ -33,6 +53,7 @@ describe('DiscordUsersService', () => {
     const entity = { ...dto };
     mockRepository.create.mockReturnValue(entity);
     mockRepository.save.mockResolvedValue(entity);
+    mockDiscordClient.users.fetch.mockResolvedValue({ avatar: 'avatar_hash' });
 
     expect(await service.create(dto)).toEqual(entity);
     expect(mockRepository.create).toHaveBeenCalledWith(dto);
