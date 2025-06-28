@@ -10,6 +10,7 @@ import { join } from 'path';
 import fastifyCsrf from '@fastify/csrf-protection';
 import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyCors from '@fastify/cors';
+import fastifyCookie from '@fastify/cookie';
 import { SanitizePipe } from './common/pipes/sanitize.pipe';
 import helmet from 'helmet';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -26,6 +27,8 @@ async function bootstrap() {
   // Guard global d'authentification
   app.useGlobalGuards(new JwtAuthGuard(app.get(JwtService), app.get(Reflector)));
 
+  // Enregistrer le plugin cookie
+  await app.getHttpAdapter().getInstance().register(fastifyCookie);
 
   await app.getHttpAdapter().getInstance().register(fastifyCors, {
     origin: process.env.FRONTEND_URL || 'http://localhost:4200',
@@ -136,7 +139,7 @@ async function bootstrap() {
     const query = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
     res.redirect(`/api/auth/callback${query}`);
   });
-
+  
   // Configuration de la version de l'API
   await app.listen(3000, '0.0.0.0');
 }
