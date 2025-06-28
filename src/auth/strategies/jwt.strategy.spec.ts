@@ -35,7 +35,7 @@ describe('JwtStrategy', () => {
 
   describe('validate', () => {
     it('should return user object from payload', async () => {
-      // Arrange
+      
       const payload: JwtPayload = {
         sub: 'user_id',
         username: 'test_user',
@@ -43,10 +43,10 @@ describe('JwtStrategy', () => {
         guildId: 'guild_id',
       };
 
-      // Act
+      
       const result = await strategy.validate(payload);
 
-      // Assert
+      
       expect(result).toEqual({
         userId: 'user_id',
         username: 'test_user',
