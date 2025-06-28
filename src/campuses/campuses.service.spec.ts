@@ -1,3 +1,12 @@
+/* 
+ * Tests pour le service CampusesService
+ * 
+ * Ces tests vérifient que le service gère correctement les campus :
+ * - Création avec synchronisation Discord
+ * - Lecture des campus
+ * - Mise à jour avec mise à jour du rôle Discord
+ * - Suppression avec nettoyage Discord
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CampusesService as CampusesService } from './campuses.service';
 import { Repository } from 'typeorm';
@@ -8,11 +17,13 @@ import { Role } from '../roles/entities/role.entity';
 import { DiscordBotService } from '../discord-bot/discord-bot.service';
 import { Client } from 'discord.js';
 
+/* Mock du repository des rôles pour simuler la base de données */
 const mockRoleRepository = {
   create: vi.fn(),
   save: vi.fn(),
 };
 
+/* Mock du repository des campus pour simuler la base de données */
 const mockRepository = {
   create: vi.fn(),
   save: vi.fn(),
@@ -21,6 +32,7 @@ const mockRepository = {
   delete: vi.fn(),
 };
 
+/* Mock du service Discord Bot pour simuler les interactions Discord */
 const mockDiscordBotService = {
   getClient: () => ({
     user: {},
@@ -38,6 +50,7 @@ const mockDiscordBotService = {
   } as unknown as Client<boolean>)
 } as unknown as DiscordBotService;
 
+/* Mock du service CampusBot pour simuler les opérations Discord */
 const mockCampusBotService = {
   createCampusRole: vi.fn().mockResolvedValue({
     id: '234567890123456789',
@@ -59,10 +72,12 @@ describe('CampusesService', () => {
     );
   });
 
+  /* Vérifie que le service est bien instancié */
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
+  /* Test de création d'un campus avec création automatique du rôle Discord */
   it('should create a new campus', async () => {
     const dto: CreateCampusDto = { 
       name: 'Test Campus',
@@ -105,6 +120,7 @@ describe('CampusesService', () => {
     expect(mockRepository.save).toHaveBeenCalledWith(entity);
   });
 
+  /* Test de récupération de tous les campus */
   it('should return an array of campuses', async () => {
     const result = [{ uuidCampus: '123e4567-e89b-12d3-a456-426614174000', name: 'Test Campus' }];
     mockRepository.find.mockResolvedValue(result);
@@ -112,6 +128,7 @@ describe('CampusesService', () => {
     expect(mockRepository.find).toHaveBeenCalled();
   });
 
+  /* Test de récupération d'un campus spécifique */
   it('should return a single campus', async () => {
     const result = { uuidCampus: '123e4567-e89b-12d3-a456-426614174000', name: 'Test Campus' };
     mockRepository.findOneBy.mockResolvedValue(result);
@@ -119,8 +136,8 @@ describe('CampusesService', () => {
     expect(mockRepository.findOneBy).toHaveBeenCalledWith({ uuidCampus: '123e4567-e89b-12d3-a456-426614174000' });
   });
 
+  /* Test de mise à jour d'un campus avec mise à jour du rôle Discord */
   it('should update a campus', async () => {
-  
     const existingCampus = {
       uuidCampus: '123e4567-e89b-12d3-a456-426614174000',
       uuidRole: '234567890123456789',
@@ -131,34 +148,28 @@ describe('CampusesService', () => {
     const dto: UpdateCampusDto = { name: 'Updated Campus' };
     const updatedCampus = { ...existingCampus, name: 'Updated Campus' };
 
-    
     mockRepository.findOneBy.mockResolvedValue(existingCampus);
     mockRepository.save.mockResolvedValue(updatedCampus);
 
-    // Exécuter la mise à jour
     const result = await service.update('123e4567-e89b-12d3-a456-426614174000', dto);
 
-    // Vérifier les résultats
     expect(result).toEqual(updatedCampus);
     
-    // Vérifier que le campus a été trouvé
     expect(mockRepository.findOneBy).toHaveBeenCalledWith({ 
       uuidCampus: '123e4567-e89b-12d3-a456-426614174000' 
     });
 
-    // Vérifier que le rôle Discord a été mis à jour via CampusBotService
     expect(mockCampusBotService.updateCampusRole).toHaveBeenCalledWith(
       existingCampus.uuidGuild,
       existingCampus.uuidRole,
       'Updated Campus'
     );
 
-    // Vérifier que le campus a été mis à jour dans la base de données
     expect(mockRepository.save).toHaveBeenCalledWith(updatedCampus);
   });
 
+  /* Test de suppression d'un campus avec suppression du rôle Discord */
   it('should delete a campus', async () => {
-    // Simuler un campus existant avec un rôle associé
     const existingCampus = {
       uuidCampus: '123e4567-e89b-12d3-a456-426614174000',
       uuidRole: '234567890123456789',
@@ -166,28 +177,22 @@ describe('CampusesService', () => {
       name: 'Test Campus'
     };
 
-    // Configurer les mocks
     mockRepository.findOneBy.mockResolvedValue(existingCampus);
     mockRepository.delete.mockResolvedValue({ affected: 1 });
 
-    // Exécuter la suppression
     const result = await service.remove('123e4567-e89b-12d3-a456-426614174000');
 
-    // Vérifier les résultats
     expect(result).toEqual({ affected: 1 });
     
-    // Vérifier que le campus a été trouvé
     expect(mockRepository.findOneBy).toHaveBeenCalledWith({ 
       uuidCampus: '123e4567-e89b-12d3-a456-426614174000' 
     });
 
-    // Vérifier que le rôle Discord a été supprimé via CampusBotService
     expect(mockCampusBotService.deleteCampusRole).toHaveBeenCalledWith(
       existingCampus.uuidGuild,
       existingCampus.uuidRole
     );
 
-    // Vérifier que le campus a été supprimé de la base de données
     expect(mockRepository.delete).toHaveBeenCalledWith({ 
       uuidCampus: '123e4567-e89b-12d3-a456-426614174000' 
     });
