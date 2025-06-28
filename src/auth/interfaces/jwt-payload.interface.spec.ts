@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 describe('JwtPayload Interface', () => {
   it('should be defined', () => {
-    // Test que l'interface peut être utilisée
+    
     const mockJwtPayload = {
       sub: '123456789',
       username: 'testuser',
