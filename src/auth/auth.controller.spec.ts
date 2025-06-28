@@ -16,6 +16,7 @@ describe('AuthController', () => {
     getUserInfo: vi.fn(),
     validateUserGuild: vi.fn(),
     generateJwtToken: vi.fn(),
+    getGuildRoles: vi.fn(),
   };
 
   const mockConfigService = {
@@ -34,6 +35,7 @@ describe('AuthController', () => {
     status: vi.fn().mockReturnThis(),
     header: vi.fn().mockReturnThis(),
     send: vi.fn(),
+    cookie: vi.fn().mockReturnThis(),
   };
 
   beforeEach(async () => {
@@ -55,7 +57,6 @@ describe('AuthController', () => {
     authService = module.get<AuthService>(AuthService);
     configService = module.get<ConfigService>(ConfigService);
     
-    // Reset all mocks before each test
     vi.clearAllMocks();
   });
 
@@ -65,16 +66,13 @@ describe('AuthController', () => {
 
   describe('login', () => {
     it('should redirect to Discord authorization URL', () => {
-      // Arrange
       const clientId = 'client_id';
       const redirectUri = encodeURIComponent('http://localhost:3000/auth/callback');
       const scope = encodeURIComponent('identify email guilds guilds.members.read');
-      const expectedUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+      const expectedUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
 
-      // Act
       controller.login(mockResponse as any);
 
-      // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(302);
       expect(mockResponse.header).toHaveBeenCalledWith('Location', expectedUrl);
       expect(mockResponse.send).toHaveBeenCalled();
@@ -82,8 +80,7 @@ describe('AuthController', () => {
   });
 
   describe('callback', () => {
-    it('should process callback successfully and redirect with token', async () => {
-      // Arrange
+    it('should process callback successfully and redirect with success', async () => {
       const code = 'auth_code';
       const accessToken = 'access_token';
       const user: DiscordUser = {
@@ -107,35 +104,37 @@ describe('AuthController', () => {
         }
       };
       const jwt = 'jwt_token';
+      const guildRoles = [
+        { id: 'role_1', name: 'Administrateur' },
+        { id: 'role_2', name: 'Chargé de projet' }
+      ];
 
       mockAuthService.exchangeCodeForToken.mockResolvedValue(accessToken);
       mockAuthService.getUserInfo.mockResolvedValue(user);
       mockAuthService.validateUserGuild.mockResolvedValue(validationResult);
       mockAuthService.generateJwtToken.mockReturnValue(jwt);
+      mockAuthService.getGuildRoles.mockResolvedValue(guildRoles);
 
-      // Act
       await controller.callback(code, mockResponse as any);
 
-      // Assert
       expect(mockAuthService.exchangeCodeForToken).toHaveBeenCalledWith(code);
       expect(mockAuthService.getUserInfo).toHaveBeenCalledWith(accessToken);
       expect(mockAuthService.validateUserGuild).toHaveBeenCalledWith(accessToken, user.id);
+      expect(mockAuthService.getGuildRoles).toHaveBeenCalledWith('guild_id');
       expect(mockAuthService.generateJwtToken).toHaveBeenCalledWith(user, validationResult.roles);
+      expect(mockResponse.cookie).toHaveBeenCalledWith('auth_token', jwt, expect.any(Object));
       expect(mockResponse.status).toHaveBeenCalledWith(302);
-      expect(mockResponse.header).toHaveBeenCalledWith('Location', `/auth-callback-page?token=${jwt}`);
+      expect(mockResponse.header).toHaveBeenCalledWith('Location', 'http://localhost:4200/auth-callback-page?success=true');
       expect(mockResponse.send).toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException when code is not provided', async () => {
-      // Arrange
       const code = '' as any;
 
-      // Act & Assert
       await expect(controller.callback(code, mockResponse as any)).rejects.toThrow(UnauthorizedException);
     });
 
     it('should redirect to error page when user is not in allowed guild', async () => {
-      // Arrange
       const code = 'auth_code';
       const accessToken = 'access_token';
       const user: DiscordUser = {
@@ -154,33 +153,28 @@ describe('AuthController', () => {
       mockAuthService.getUserInfo.mockResolvedValue(user);
       mockAuthService.validateUserGuild.mockResolvedValue(validationResult);
 
-      // Act
       await controller.callback(code, mockResponse as any);
 
-      // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(302);
       expect(mockResponse.header).toHaveBeenCalledWith(
         'Location', 
-        `/auth-callback-page?message=${encodeURIComponent("L'utilisateur n'est pas membre du serveur autorisé")}`
+        `http://localhost:4200/auth-callback-page?message=${encodeURIComponent("L'utilisateur n'est pas membre du serveur autorisé")}`
       );
       expect(mockResponse.send).toHaveBeenCalled();
     });
 
     it('should redirect to error page when an error occurs', async () => {
-      // Arrange
       const code = 'auth_code';
       const error = new Error('Test error');
 
       mockAuthService.exchangeCodeForToken.mockRejectedValue(error);
 
-      // Act
       await controller.callback(code, mockResponse as any);
 
-      // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(302);
       expect(mockResponse.header).toHaveBeenCalledWith(
         'Location',
-        `/auth-callback-page?message=${encodeURIComponent('Test error')}`
+        `http://localhost:4200/auth-callback-page?message=${encodeURIComponent('Test error')}`
       );
       expect(mockResponse.send).toHaveBeenCalled();
     });
