@@ -49,12 +49,12 @@
     </div>
 
     <script>
-        // Récupérer les paramètres de l'URL
+        
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         const errorMessage = urlParams.get('message');
         
-        // Rediriger vers la page de test avec les paramètres
+        
         setTimeout(() => {
             let redirectUrl = '/test-auth';
             
@@ -65,7 +65,7 @@
             }
             
             window.location.href = redirectUrl;
-        }, 1500); // Redirection après 1.5 secondes
+        }, 1500); 
     </script>
 </body>
 </html> 
