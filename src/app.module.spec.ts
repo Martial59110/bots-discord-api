@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppModule } from './app.module';
 
-// Mock de PinoLogger
+
 const mockPinoLogger = {
   setContext: vi.fn(),
   info: vi.fn(),
@@ -18,9 +18,9 @@ describe('AppModule', () => {
   let appModule: AppModule;
 
   beforeEach(() => {
-    // Reset des mocks
+    
     vi.clearAllMocks();
-    // Créer une nouvelle instance du module
+    
     appModule = new AppModule(mockPinoLogger as any);
   });
 
