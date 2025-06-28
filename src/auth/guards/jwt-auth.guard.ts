@@ -41,7 +41,21 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {
+    // Essayer d'abord le header Authorization (pour la compatibilité avec les appels API)
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    return type === 'Bearer' ? token : undefined;
+    if (type === 'Bearer' && token) {
+      return token;
+    }
+    
+    // Sinon, essayer de lire depuis le cookie auth_token
+    const cookies = request.headers.cookie;
+    if (cookies) {
+      const authTokenMatch = cookies.match(/auth_token=([^;]+)/);
+      if (authTokenMatch) {
+        return decodeURIComponent(authTokenMatch[1]);
+      }
+    }
+    
+    return undefined;
   }
 } 
