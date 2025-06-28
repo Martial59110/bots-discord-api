@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PromotionsController } from './promotions.controller';
 import { PromotionsService } from './promotions.service';
 import { PromotionLifecycleService } from './promotion-lifecycle.service';
+import { AuthService } from '../auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -26,6 +27,12 @@ describe('PromotionsController', () => {
           provide: PromotionLifecycleService,
           useValue: {
             createPromotionWithWorkflow: vi.fn(),
+          },
+        },
+        {
+          provide: AuthService,
+          useValue: {
+            getGuildRoles: vi.fn(),
           },
         },
         {
