@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { join } from 'path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// Mock fs module avec vitest
+
 vi.mock('fs');
 const mockFs = fs as unknown as Record<string, any>;
 
@@ -21,14 +21,14 @@ describe('AppController', () => {
 
     controller = module.get<AppController>(AppController);
     
-    // Mock FastifyReply
+    
     mockReply = {
       type: vi.fn().mockReturnThis(),
       send: vi.fn().mockReturnThis(),
       status: vi.fn().mockReturnThis(),
     };
 
-    // Mock Logger
+    
     vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
     vi.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
   });
@@ -39,17 +39,17 @@ describe('AppController', () => {
 
   describe('serveAuthTestPage', () => {
     it('should serve auth-test.html when file exists', () => {
-      // Arrange
+      
       const fileContent = '<html><body>Test</body></html>';
       const filePath = join(__dirname, '..', 'public', 'auth-test.html');
       
       mockFs.existsSync = vi.fn((path: string) => path === filePath);
       mockFs.readFileSync = vi.fn(() => fileContent);
 
-      // Act
+      
       controller.serveAuthTestPage(mockReply);
 
-      // Assert
+      
       expect(mockFs.existsSync).toHaveBeenCalledWith(filePath);
       expect(mockFs.readFileSync).toHaveBeenCalledWith(filePath, 'utf8');
       expect(mockReply.type).toHaveBeenCalledWith('text/html');
@@ -57,13 +57,13 @@ describe('AppController', () => {
     });
 
     it('should return 404 when file does not exist', () => {
-      // Arrange
+      
       mockFs.existsSync = vi.fn(() => false);
 
-      // Act
+      
       controller.serveAuthTestPage(mockReply);
 
-      // Assert
+      
       expect(mockReply.status).toHaveBeenCalledWith(404);
       expect(mockReply.send).toHaveBeenCalledWith({
         message: 'Fichier non trouvé',
@@ -74,17 +74,17 @@ describe('AppController', () => {
 
   describe('serveAuthCallbackPage', () => {
     it('should serve auth-callback.html when file exists', () => {
-      // Arrange
+      
       const fileContent = '<html><body>Callback</body></html>';
       const filePath = join(__dirname, '..', 'public', 'auth-callback.html');
       
       mockFs.existsSync = vi.fn((path: string) => path === filePath);
       mockFs.readFileSync = vi.fn(() => fileContent);
 
-      // Act
+      
       controller.serveAuthCallbackPage(mockReply);
 
-      // Assert
+      
       expect(mockFs.existsSync).toHaveBeenCalledWith(filePath);
       expect(mockFs.readFileSync).toHaveBeenCalledWith(filePath, 'utf8');
       expect(mockReply.type).toHaveBeenCalledWith('text/html');
@@ -92,13 +92,13 @@ describe('AppController', () => {
     });
 
     it('should return 404 when file does not exist', () => {
-      // Arrange
+      
       mockFs.existsSync = vi.fn(() => false);
 
-      // Act
+      
       controller.serveAuthCallbackPage(mockReply);
 
-      // Assert
+      
       expect(mockReply.status).toHaveBeenCalledWith(404);
       expect(mockReply.send).toHaveBeenCalledWith({
         message: 'Fichier non trouvé',
