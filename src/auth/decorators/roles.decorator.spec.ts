@@ -8,13 +8,13 @@ vi.mock('@nestjs/common', () => ({
 
 describe('Roles Decorator', () => {
   it('should call SetMetadata with correct parameters', () => {
-    // Arrange
+    
     const roles = ['admin', 'moderator'];
 
-    // Act
+    
     const result = Roles(...roles);
 
-    // Assert
+    
     expect(SetMetadata).toHaveBeenCalledWith('roles', roles);
     expect(result).toBe('metadata');
   });
