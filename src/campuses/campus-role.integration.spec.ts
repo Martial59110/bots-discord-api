@@ -1,3 +1,14 @@
+/* 
+ * Tests d'intégration pour le workflow Campus-Rôle
+ * 
+ * Ces tests vérifient que l'intégration entre les services fonctionne correctement :
+ * - Création d'un campus avec création automatique du rôle Discord
+ * - Mise à jour synchronisée entre campus et rôle
+ * - Suppression en cascade
+ * - Gestion des erreurs d'intégration
+ * 
+ * On teste le workflow complet, pas juste les unités isolées
+ */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
@@ -17,7 +28,7 @@ describe('Campus-Role Integration Tests', () => {
   let campusRepository: Repository<Campus>;
   let roleRepository: Repository<Role>;
 
-  // Mocks pour éviter les dépendances externes
+  /* Mock du service CampusBot pour simuler les interactions Discord */
   const mockCampusBotService = {
     createCampusRole: vi.fn().mockResolvedValue({
       id: '123456789012345678',
@@ -29,6 +40,7 @@ describe('Campus-Role Integration Tests', () => {
     deleteCampusRole: vi.fn().mockResolvedValue(undefined)
   };
 
+  /* Mock du logger pour éviter les logs pendant les tests */
   const mockLogger = {
     setContext: vi.fn(),
     log: vi.fn(),
@@ -39,6 +51,7 @@ describe('Campus-Role Integration Tests', () => {
     info: vi.fn(),
   };
 
+  /* Mock du repository des campus pour simuler la base de données */
   const mockCampusRepository = {
     create: vi.fn(),
     save: vi.fn(),
@@ -48,6 +61,7 @@ describe('Campus-Role Integration Tests', () => {
     delete: vi.fn(),
   };
 
+  /* Mock du repository des rôles pour simuler la base de données */
   const mockRoleRepository = {
     create: vi.fn(),
     save: vi.fn(),
@@ -100,8 +114,8 @@ describe('Campus-Role Integration Tests', () => {
   });
 
   describe('Campus et Rôle - Workflow complet', () => {
+    /* Test du workflow complet de création d'un campus avec son rôle */
     it('devrait créer un campus et son rôle associé en séquence', async () => {
-     
       const campusData = {
         name: 'Campus Test Intégration',
         uuidGuild: '123456789012345678'
@@ -126,16 +140,13 @@ describe('Campus-Role Integration Tests', () => {
         updatedAt: new Date()
       };
 
-      // 2. Configuration des mocks
       mockCampusRepository.create.mockReturnValue(expectedCampus);
       mockCampusRepository.save.mockResolvedValue(expectedCampus);
       mockRoleRepository.create.mockReturnValue(expectedRole);
       mockRoleRepository.save.mockResolvedValue(expectedRole);
 
-      // 3. Exécution du workflow d'intégration
       const createdCampus = await campusesService.create(campusData);
       
-      // 4. Vérification que le campus a été créé avec un UUID de rôle
       expect(createdCampus).toBeDefined();
       expect(createdCampus.uuidRole).toBeDefined();
       expect(mockCampusBotService.createCampusRole).toHaveBeenCalledWith(
@@ -143,7 +154,6 @@ describe('Campus-Role Integration Tests', () => {
         campusData.name
       );
 
-      // 5. Création du rôle en base avec l'UUID retourné par Discord
       const roleData = {
         uuidRole: createdCampus.uuidRole,
         name: campusData.name,
@@ -156,12 +166,10 @@ describe('Campus-Role Integration Tests', () => {
 
       const createdRole = await rolesService.create(roleData);
 
-      // 6. Vérifications finales
       expect(createdRole).toBeDefined();
       expect(createdRole.uuidRole).toBe(createdCampus.uuidRole);
       expect(createdRole.name).toBe(campusData.name);
 
-      // 7. Vérification que les services ont été appelés correctement
       expect(mockCampusRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           name: campusData.name,
@@ -183,8 +191,8 @@ describe('Campus-Role Integration Tests', () => {
       );
     });
 
+    /* Test de gestion d'erreur quand Discord échoue */
     it('devrait gérer les erreurs lors de la création du rôle Discord', async () => {
-      // 1. Simulation d'une erreur Discord
       mockCampusBotService.createCampusRole.mockRejectedValue(
         new Error('Erreur Discord API')
       );
@@ -194,17 +202,15 @@ describe('Campus-Role Integration Tests', () => {
         uuidGuild: '123456789012345678'
       };
 
-      // 2. Vérification que l'erreur est propagée
       await expect(campusesService.create(campusData))
         .rejects
         .toThrow('Erreur Discord API');
 
-      // 3. Vérification que le campus n'a pas été créé en base
       expect(mockCampusRepository.save).not.toHaveBeenCalled();
     });
 
+    /* Test de mise à jour synchronisée entre campus et rôle Discord */
     it('devrait permettre la mise à jour du campus et du rôle', async () => {
-      // 1. Campus existant
       const existingCampus = {
         uuidCampus: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Campus Original',
@@ -219,17 +225,14 @@ describe('Campus-Role Integration Tests', () => {
         name: 'Campus Mis à Jour'
       };
 
-      // 2. Configuration des mocks
       mockCampusRepository.findOneBy.mockResolvedValue(existingCampus);
       mockCampusRepository.save.mockResolvedValue(updatedCampus);
 
-      // 3. Mise à jour du campus
       const result = await campusesService.update(
         existingCampus.uuidCampus,
         { name: 'Campus Mis à Jour' }
       );
 
-      // 4. Vérifications
       expect(result.name).toBe('Campus Mis à Jour');
       expect(mockCampusBotService.updateCampusRole).toHaveBeenCalledWith(
         existingCampus.uuidGuild,
@@ -238,8 +241,8 @@ describe('Campus-Role Integration Tests', () => {
       );
     });
 
+    /* Test de suppression en cascade avec nettoyage Discord */
     it('devrait supprimer le campus et le rôle en cascade', async () => {
-      // 1. Campus à supprimer
       const campusToDelete = {
         uuidCampus: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Campus à Supprimer',
@@ -249,15 +252,12 @@ describe('Campus-Role Integration Tests', () => {
         updatedAt: new Date()
       };
 
-      // 2. Configuration des mocks
       mockCampusRepository.findOneBy.mockResolvedValue(campusToDelete);
       mockCampusRepository.delete.mockResolvedValue({ affected: 1 });
       mockRoleRepository.delete.mockResolvedValue({ affected: 1 });
 
-      // 3. Suppression du campus
       await campusesService.remove(campusToDelete.uuidCampus);
 
-      // 4. Vérifications
       expect(mockCampusBotService.deleteCampusRole).toHaveBeenCalledWith(
         campusToDelete.uuidGuild,
         campusToDelete.uuidRole
@@ -269,35 +269,34 @@ describe('Campus-Role Integration Tests', () => {
   });
 
   describe('Validation des données', () => {
+    /* Test de validation des données du campus */
     it('devrait valider les données du campus avant création', async () => {
       const invalidCampusData = {
-        name: '', // Nom vide
-        uuidGuild: 'invalid-uuid' // UUID invalide
+        name: '', /* Nom vide */
+        uuidGuild: 'invalid-uuid' /* UUID invalide */
       };
 
-      // Le service devrait rejeter les données invalides
       await expect(campusesService.create(invalidCampusData))
         .rejects
         .toThrow();
     });
 
+    /* Test de validation des données du rôle */
     it('devrait valider les données du rôle avant création', async () => {
       const invalidRoleData = {
-        uuidRole: '', // UUID vide
-        name: '', // Nom vide
-        memberCount: '-1', // Nombre négatif
+        uuidRole: '', /* UUID vide */
+        name: '', /* Nom vide */
+        memberCount: '-1', /* Nombre négatif */
         rolePosition: '1',
         hoist: false,
         color: '#FF0000',
         uuidGuild: '123456789012345678'
       };
 
-      // Configuration du mock pour rejeter les données invalides
       mockRoleRepository.create.mockImplementation(() => {
         throw new Error('Validation failed');
       });
 
-      // Le service devrait rejeter les données invalides
       await expect(rolesService.create(invalidRoleData))
         .rejects
         .toThrow('Validation failed');
