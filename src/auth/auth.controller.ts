@@ -6,6 +6,18 @@ import { ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { DiscordGuildMember } from './interfaces/discord-user.interface';
 import { Public } from './decorators/public.decorator';
 
+/**
+ * Contrôleur qui gère toutes les routes d'authentification
+ * 
+ * Ce contrôleur expose les endpoints pour :
+ * - Démarrer le processus de connexion Discord OAuth2
+ * - Recevoir le callback de Discord après authentification
+ * - Déconnecter l'utilisateur
+ * - Récupérer les infos utilisateur
+ * 
+ * Toutes les routes sont marquées @Public() car elles doivent être accessibles
+ * sans authentification (sinon on ne pourrait jamais se connecter !)
+ */
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -15,6 +27,12 @@ export class AuthController {
     private readonly configService: ConfigService
   ) {}
 
+  /**
+   * Point d'entrée pour démarrer la connexion Discord OAuth2
+   * 
+   * Quand l'utilisateur clique sur "Se connecter avec Discord", il arrive ici.
+   * On le redirige vers Discord avec nos paramètres d'app (client_id, scope, etc.)
+   */
   @ApiOperation({ 
     summary: 'Connexion via Discord OAuth2',
     description: 'Redirige l\'utilisateur vers la page d\'authentification Discord OAuth2'
@@ -35,10 +53,12 @@ export class AuthController {
     this.logger.log(`Redirection vers Discord: ${discordAuthUrl}`);
     this.logger.log(`URL de redirection non encodée: ${this.configService.get<string>('DISCORD_REDIRECT_URI')}`);
     
-    // Utiliser la méthode de redirection de Fastify
     res.status(302).header('Location', discordAuthUrl).send();
   }
 
+  /**
+   * Alias pour la route login - certains utilisent /auth/discord au lieu de /auth/login
+   */
   @ApiOperation({ 
     summary: 'Redirection vers Discord OAuth2',
     description: 'Alias pour la route login'
@@ -53,6 +73,13 @@ export class AuthController {
     return this.login(res);
   }
 
+  /**
+   * Endpoint appelé par Discord après que l'utilisateur se soit authentifié
+   * 
+   * Discord nous renvoie un code temporaire qu'on échange contre un token.
+   * On vérifie que l'utilisateur est bien dans notre serveur et a les bons rôles.
+   * Si tout est OK, on génère un JWT et on le met dans un cookie sécurisé.
+   */
   @ApiOperation({ 
     summary: 'Callback OAuth2 Discord',
     description: 'Endpoint appelé par Discord après authentification réussie'
@@ -82,70 +109,30 @@ export class AuthController {
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
 
-    try {
-      // Échanger le code contre un token d'accès
-      this.logger.log('Échange du code contre un token d\'accès...');
-      const accessToken = await this.authService.exchangeCodeForToken(code);
+    // Utilisation de la nouvelle méthode du service qui centralise toute la logique
+    const result = await this.authService.processOAuth2Callback(code);
+    
+    if (result.success && result.jwt) {
+      // Configuration du cookie via le service
+      const cookieConfig = this.authService.getCookieConfig(result.jwt);
+      res.cookie(cookieConfig.name, cookieConfig.value, cookieConfig.options);
       
-      // Récupérer les informations de l'utilisateur
-      this.logger.log('Récupération des informations utilisateur...');
-      const user = await this.authService.getUserInfo(accessToken);
-      
-      // Valider l'appartenance au serveur et récupérer les rôles
-      this.logger.log(`Validation de l'appartenance au serveur pour l'utilisateur ${user.id}...`);
-      const { isValid, roles, guildMember } = await this.authService.validateUserGuild(accessToken, user.id);
-      
-      if (!isValid) {
-        this.logger.warn(`L'utilisateur ${user.id} n'est pas membre du serveur autorisé`);
-        const redirectUrl = `${frontendUrl}/auth-callback-page?message=${encodeURIComponent("L'utilisateur n'est pas membre du serveur autorisé")}`;
-        res.status(302).header('Location', redirectUrl).send();
-        return;
-      }
-
-      // Vérification des rôles par nom
-      // On récupère la liste complète des rôles du serveur via l'API Discord
-      const guildId = this.configService.get<string>('ALLOWED_GUILD_ID') || '';
-      const allRolesResponse = await this.authService.getGuildRoles(guildId);
-      // allRolesResponse = tableau d'objets { id, name }
-      const userRoleNames = allRolesResponse
-        .filter(role => guildMember?.roles.includes(role.id))
-        .map(role => role.name);
-      const allowedRoleNames = ['Administrateur', 'Chargé de projet', 'Directeur'];
-      const hasAllowedRole = userRoleNames.some(name => allowedRoleNames.includes(name));
-      if (!hasAllowedRole) {
-        this.logger.warn(`L'utilisateur ${user.id} n'a pas les rôles requis : ${userRoleNames.join(', ')}`);
-        const redirectUrl = `${frontendUrl}/auth-callback-page?message=${encodeURIComponent("Vous n'avez pas les permissions nécessaires pour accéder à cette application.")}`;
-        res.status(302).header('Location', redirectUrl).send();
-        return;
-      }
-      
-      // Générer un JWT
-      this.logger.log('Génération du JWT...');
-      const jwt = this.authService.generateJwtToken(user, roles);
-      
-      // Définir le JWT dans un cookie httpOnly
-      const isProduction = process.env.NODE_ENV === 'production';
-      res.cookie('auth_token', jwt, {
-        httpOnly: true,
-        secure: isProduction, // HTTPS seulement en production
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 24 * 60 * 60 * 1000, // 24 heures
-        domain: isProduction ? undefined : 'localhost' // Pour le développement local
-      });
-      
-      // Rediriger vers la page de callback du frontend (sans token en paramètre)
       const redirectUrl = `${frontendUrl}/auth-callback-page?success=true`;
       this.logger.log(`Redirection vers: ${redirectUrl}`);
       res.status(302).header('Location', redirectUrl).send();
-    } catch (error) {
-      this.logger.error(`Erreur lors du traitement du callback: ${error.message}`, error.stack);
-      const redirectUrl = `${frontendUrl}/auth-callback-page?message=${encodeURIComponent(error.message)}`;
+    } else {
+      // Redirection vers la page d'erreur
+      const redirectUrl = `${frontendUrl}/auth-callback-page?message=${encodeURIComponent(result.errorMessage || 'Erreur inconnue')}`;
       this.logger.log(`Redirection vers page d'erreur: ${redirectUrl}`);
       res.status(302).header('Location', redirectUrl).send();
     }
   }
 
+  /**
+   * Déconnecte l'utilisateur en supprimant le cookie d'authentification
+   * 
+   * On supprime le cookie JWT et on redirige vers la page de login
+   */
   @ApiOperation({ 
     summary: 'Déconnexion',
     description: 'Supprime le cookie d\'authentification'
@@ -157,11 +144,9 @@ export class AuthController {
   @Get('logout')
   @Public()
   logout(@Res() res: FastifyReply): void {
-    // Supprimer le cookie d'authentification
-    res.clearCookie('auth_token', {
-      path: '/',
-      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
-    });
+    // Configuration de suppression du cookie via le service
+    const cookieConfig = this.authService.getClearCookieConfig();
+    res.clearCookie(cookieConfig.name, cookieConfig.options);
     
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
     const redirectUrl = `${frontendUrl}/login`;
@@ -169,6 +154,15 @@ export class AuthController {
     res.status(302).header('Location', redirectUrl).send();
   }
 
+  /**
+   * Endpoint pour récupérer les infos de l'utilisateur connecté
+   * 
+   * Peut fonctionner de deux façons :
+   * - Avec un code OAuth2 (ancien flux)
+   * - Avec un JWT valide (nouveau flux)
+   * 
+   * Retourne les infos utilisateur, ses serveurs, ses rôles, etc.
+   */
   @ApiOperation({ 
     summary: 'Informations utilisateur',
     description: 'Récupère les informations de l\'utilisateur authentifié'
@@ -192,36 +186,15 @@ export class AuthController {
       let roles: string[] = [];
 
       if (code) {
-        // Mode avec code OAuth2 (ancien flux)
-        this.logger.log('Mode OAuth2 avec code');
-        
-      // Échanger le code contre un token d'accès
-      const accessToken = await this.authService.exchangeCodeForToken(code);
-      
-      // Récupérer les informations de l'utilisateur
-        user = await this.authService.getUserInfo(accessToken);
-      
-      // Récupérer les serveurs de l'utilisateur
-        guilds = await this.authService.getUserGuilds(accessToken);
-      
-      // Vérifier l'appartenance au serveur autorisé
-      const allowedGuildId = this.configService.get<string>('ALLOWED_GUILD_ID') || '';
-        isInAllowedGuild = guilds.some(guild => guild.id === allowedGuildId);
-      
-      if (isInAllowedGuild) {
-        try {
-          // Récupérer les informations du membre dans le serveur autorisé
-            guildMember = await this.authService.getGuildMember(user.id, accessToken);
-          roles = guildMember.roles;
-        } catch (error) {
-          this.logger.error(`Erreur lors de la récupération des informations du membre: ${error.message}`);
-        }
-        }
+        // Mode OAuth2 avec code - utilisation de la nouvelle méthode du service
+        const oauth2Result = await this.authService.processOAuth2UserInfo(code);
+        user = oauth2Result.user;
+        guilds = oauth2Result.guilds;
+        isInAllowedGuild = oauth2Result.isInAllowedGuild;
+        guildMember = oauth2Result.guildMember;
+        roles = oauth2Result.roles;
       } else {
-        // Mode avec JWT (nouveau flux)
-        this.logger.log('Mode JWT - récupération des informations depuis le token');
-        
-        // Les informations utilisateur sont déjà dans le JWT, on les récupère depuis la requête
+        // Mode JWT - utilisation de la nouvelle méthode du service
         const request = res.request as any;
         const jwtUser = request.user;
         
@@ -233,24 +206,19 @@ export class AuthController {
           return;
         }
         
-        user = {
-          id: jwtUser.userId || jwtUser.sub,
-          username: jwtUser.username,
-          discriminator: '0000', // Pas disponible dans le JWT
-          avatar: null, // Pas disponible dans le JWT
-          email: null // Pas disponible dans le JWT
-        };
-        
-        roles = jwtUser.roles || [];
-        isInAllowedGuild = true; // Si on a un JWT valide, c'est qu'il est membre
-        guilds = []; // Pas de liste des serveurs en mode JWT
+        const jwtResult = this.authService.processJwtUserInfo(jwtUser);
+        user = jwtResult.user;
+        roles = jwtResult.roles;
+        isInAllowedGuild = jwtResult.isInAllowedGuild;
+        guilds = jwtResult.guilds;
       }
       
-      // Générer un JWT si l'utilisateur est membre du serveur autorisé
+      // Génération du JWT si l'utilisateur est membre du serveur autorisé
       const jwt = isInAllowedGuild 
         ? this.authService.generateJwtToken(user, roles)
         : null;
       
+      // Construction de la réponse
       res.status(200).send({
         user: {
           id: user.id,
