@@ -8,9 +8,19 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
 
+/**
+ * Module d'authentification qui regroupe tout ce qui concerne la sécurité
+ * 
+ * Ce module configure :
+ * - L'authentification JWT avec Passport
+ * - Les tokens JWT avec leur secret et expiration
+ * - Les services pour interagir avec Discord OAuth2
+ * - Les guards pour protéger les routes
+ */
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -21,7 +31,9 @@ import { RolesGuard } from './guards/roles.guard';
         },
       }),
     }),
+    
     HttpModule,
+    
     ConfigModule,
   ],
   controllers: [AuthController],
